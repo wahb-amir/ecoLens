@@ -94,7 +94,7 @@ export default function LiveStatsSection() {
               Environmental Telemetry
             </h2>
           </div>
-          <div className="bg-green-500 text-white px-4 py-2 rounded-md font-mono text-xs flex items-center gap-4">
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-md font-mono text-xs flex items-center gap-4 shadow-sm">
             <span className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               REF_CLOCK: {timestamp}
