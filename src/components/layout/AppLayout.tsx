@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Recycle } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { AuthProvider,useAuth } from '@/app/providers/AuthProvider';
-
 type User = {
   id?: string;
   email?: string;
@@ -33,6 +32,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isLandingPage = pathname === '/';
   const { user } = useAuth();
+
 
   return (
     <div className="flex min-h-screen flex-col">

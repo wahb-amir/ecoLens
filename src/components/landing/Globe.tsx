@@ -16,7 +16,7 @@ import { animate, useScroll, useTransform } from "framer-motion";
 type WasteType = "plastic" | "organic" | "hazardous";
 
 interface WasteEvent {
-  id: number;
+  id: string;
   position: THREE.Vector3;
   type: WasteType;
   color: string;
@@ -157,7 +157,7 @@ function WasteStream({ scale = 1 }: { scale?: number }) {
       const type = types[Math.floor(Math.random() * types.length)];
 
       const newEvent: WasteEvent = {
-        id: idCounter++,
+        id: crypto.randomUUID(),
         position: pos,
         type: type,
         color: WASTE_COLORS[type],

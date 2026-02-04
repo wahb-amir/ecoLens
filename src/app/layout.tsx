@@ -5,10 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { cookies } from "next/headers";
 import { AuthProvider } from "./providers/AuthProvider";
-export const metadata: Metadata = {
-  title: "EcoLens",
-  description: "Classify waste. Track impact. Save the planet.",
-};
 
 type User = {
   id?: string;
@@ -16,6 +12,11 @@ type User = {
   role?: string;
   // add any other minimal fields your app needs
 } | null;
+
+export const metadata: Metadata = {
+  title: "EcoLens",
+  description: "Classify waste. Track impact. Save the planet.",
+};
 
 export default async function RootLayout({
   children,
@@ -27,24 +28,21 @@ export default async function RootLayout({
   try {
     // read cookies from incoming request
     const cookieStore = cookies();
-    const cookieHeader = cookieStore.toString(); // like "cookie1=..; cookie2=.."
-
+    const cookieHeader = cookieStore.toString(); 
 
     const res = await fetch(`${process.env.BACKEND_URL}/api/user/me`, {
       method: "GET",
       headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
-      // ensure we always fetch fresh auth state for this request
       cache: "no-store",
+      credentials:"include",
     });
 
     if (res.ok) {
-      // parse user shape your backend returns
       user = await res.json();
     } else {
       user = null;
     }
   } catch (err) {
-    // swallow errors here: treat as unauthenticated (you can log server-side)
     user = null;
   }
 
@@ -63,7 +61,6 @@ export default async function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        {/* pass initialUser down to AppLayout */}
         <AuthProvider initialUser={user}>
           <AppLayout initialUser={user}>{children}</AppLayout>
         </AuthProvider>
