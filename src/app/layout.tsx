@@ -27,7 +27,7 @@ export default async function RootLayout({
 
   try {
     // read cookies from incoming request
-    const cookieStore = cookies();
+    const cookieStore =await cookies();
     const cookieHeader = cookieStore.toString(); 
 
     const res = await fetch(`${process.env.BACKEND_URL}/api/user/me`, {
