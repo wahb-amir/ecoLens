@@ -25,10 +25,13 @@ export default function HowItWorksSection() {
       className="w-full bg-white py-20 px-4 md:py-28 overflow-x-hidden"
     >
       <div className="max-w-6xl mx-auto text-center">
-        <h2 className="text-3xl md:text-4xl font-bold">How It Works</h2>
+        <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-8">
+          How it <span className="text-emerald-600">Works.</span>
+        </h2>
         <p className="mt-4 max-w-2xl mx-auto text-lg text-muted-foreground">
           A simple, gamified process to make recycling more engaging and impactful.
         </p>
+        
 
         <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {steps.map((step, index) => (
