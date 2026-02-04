@@ -5,7 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import LandingHeader from "./LandingHeader";
+import LandingHeader from "./Navbar";
 import dynamic from "next/dynamic";
 
 const Globe = dynamic(() => import("./Globe").then((m) => m.Globe), {

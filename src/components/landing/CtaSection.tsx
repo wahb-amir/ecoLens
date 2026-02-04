@@ -73,8 +73,8 @@ export default function CtaSection() {
               { icon: ShieldCheck, text: "Secure Data Uplink" },
               { icon: Terminal, text: "Open Protocol" },
             ].map((item, i) => (
-              <div key={i} className="flex items-center gap-2 text-slate-400 text-xs font-mono uppercase tracking-wider">
-                <item.icon className="w-4 h-4 text-emerald-500/40" />
+              <div key={i} className="flex items-center gap-2 text-black text-xs font-mono uppercase tracking-wider">
+                <item.icon className="w-4 h-4 text-emerald-500" />
                 {item.text}
               </div>
             ))}

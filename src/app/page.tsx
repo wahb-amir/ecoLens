@@ -1,4 +1,4 @@
-// import { HeroSection, AboutSection, HowItWorksSection, AchievementsSection, LiveStatsSection, CtaSection } from '@/components/landing/LandingSections';
+
 import HeroSection from "@/components/landing/HeroSection";
 import AboutSection from "@/components/landing/AboutSection";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
