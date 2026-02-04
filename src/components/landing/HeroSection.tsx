@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import LandingHeader from "./Navbar";
 import dynamic from "next/dynamic";
+import { useAuth } from "@/app/providers/AuthProvider";
 
 const Globe = dynamic(() => import("./Globe").then((m) => m.Globe), {
   ssr: false,
@@ -14,6 +15,7 @@ const Globe = dynamic(() => import("./Globe").then((m) => m.Globe), {
 });
 
 export default function HeroSection() {
+    const {user}=useAuth();
   return (
     <section className="w-full h-screen relative flex items-center justify-center text-center overflow-hidden bg-[#020817]">
       <LandingHeader />
@@ -43,7 +45,7 @@ export default function HeroSection() {
           Upload photos of your waste, see your eco impact, and explore global environmental data in real time.
         </p>
         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-          <Link href="/dashboard">
+          <Link href={user?"/dashboard":"/login"}>
             <Button
               size="lg"
               className="mt-8 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg px-8 py-6 text-lg shadow-2xl bg-green-500 text-white"

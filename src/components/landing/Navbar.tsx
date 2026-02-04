@@ -13,7 +13,7 @@ export default function LandingHeader() {
           <Recycle className="h-8 w-8 text-green-500" />
           <h1 className="text-2xl font-bold text-white">EcoLens</h1>
         </Link>
-        <Link href="/dashboard">
+        <Link href={user?"/dashboard":"/login"}>
           <Button
             variant="outline"
             className="bg-transparent text-white border-white hover:bg-white/20 cursor-pointer hover:text-primary transition-colors duration-300"
