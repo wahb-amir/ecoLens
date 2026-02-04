@@ -1,4 +1,5 @@
-import type { ElementType } from "react";
+import type { ForwardRefExoticComponent, RefAttributes, SVGProps } from "react";
+
 
 export interface LeaderboardUser {
   rank: number;
@@ -16,6 +17,7 @@ export interface Achievement {
   id: string;
   name: string;
   description: string;
-  icon: ElementType;
+  icon: ForwardRefExoticComponent<SVGProps<SVGSVGElement> & RefAttributes<SVGSVGElement>>;
   isUnlocked: (stats: EcoStats) => boolean;
+  goal?: number; // optional property
 }

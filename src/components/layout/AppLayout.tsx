@@ -1,10 +1,8 @@
 'use client';
 
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Recycle } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { AuthProvider,useAuth } from '@/app/providers/AuthProvider';
+import { Footer } from '../Footer';
 type User = {
   id?: string;
   email?: string;
@@ -39,13 +37,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       <main className="flex-1">{children}</main>
 
       {!isLandingPage && (
-        <footer className="py-6 md:px-8 md:py-0 border-t">
-          <div className="container flex flex-col items-center justify-between gap-4 md:h-24 md:flex-row">
-            <p className="text-balance text-center text-sm leading-loose text-muted-foreground md:text-left">
-              Built with passion. Saving the planet, one classification at a time.
-            </p>
-          </div>
-        </footer>
+       <Footer/>
       )}
     </div>
   );
