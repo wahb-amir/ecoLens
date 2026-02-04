@@ -25,26 +25,26 @@ export default async function RootLayout({
 }>) {
   let user: User = null;
 
-  try {
-    // read cookies from incoming request
-    const cookieStore =await cookies();
-    const cookieHeader = cookieStore.toString(); 
+  // try {
+  //   // read cookies from incoming request
+  //   const cookieStore =await cookies();
+  //   const cookieHeader = cookieStore.toString(); 
 
-    const res = await fetch(`${process.env.BACKEND_URL}/api/user/me`, {
-      method: "GET",
-      headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
-      cache: "no-store",
-      credentials:"include",
-    });
+  //   const res = await fetch(`${process.env.BACKEND_URL}/api/user/me`, {
+  //     method: "GET",
+  //     headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
+  //     cache: "no-store",
+  //     credentials:"include",
+  //   });
 
-    if (res.ok) {
-      user = await res.json();
-    } else {
-      user = null;
-    }
-  } catch (err) {
-    user = null;
-  }
+  //   if (res.ok) {
+  //     user = await res.json();
+  //   } else {
+  //     user = null;
+  //   }
+  // } catch (err) {
+  //   user = null;
+  // }
 
   return (
     <html lang="en" suppressHydrationWarning>
