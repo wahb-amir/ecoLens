@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { usePathname } from 'next/navigation';
-import { AuthProvider,useAuth } from '@/app/providers/AuthProvider';
-import { Footer } from '../Footer';
+import { usePathname } from "next/navigation";
+import { AuthProvider, useAuth } from "@/app/providers/AuthProvider";
+import { Footer } from "../Footer";
 type User = {
   id?: string;
   email?: string;
@@ -23,22 +23,14 @@ export function AppLayout({
   );
 }
 
-/**
- * Split into inner component so we can use the hook
- */
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isLandingPage = pathname === '/';
-
+  const isLandingPage = pathname === "/";
 
   return (
     <div className="flex min-h-screen flex-col">
-
       <main className="flex-1">{children}</main>
-
-      {!isLandingPage && (
-       <Footer/>
-      )}
+      {!isLandingPage && <Footer isLandingPage={isLandingPage} />}
     </div>
   );
 }
