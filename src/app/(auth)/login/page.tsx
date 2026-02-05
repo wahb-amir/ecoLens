@@ -2,8 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation"; 
-import { AuthLayout,StatusAlert } from "@/components/auth/auth-layout";
+import { useRouter } from "next/navigation";
+import { AuthLayout, StatusAlert } from "@/components/auth/auth-layout";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";

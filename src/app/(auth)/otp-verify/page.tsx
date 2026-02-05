@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link"; // Added for navigation
 import { AuthLayout, StatusAlert } from "@/components/auth/auth-layout";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw, ShieldCheck } from "lucide-react";
+import { Loader2, RefreshCw, ShieldCheck, ArrowLeft } from "lucide-react"; // Added ArrowLeft
 
 function OtpForm() {
   const searchParams = useSearchParams();
@@ -18,18 +19,13 @@ function OtpForm() {
   const [timer, setTimer] = useState(30);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // 1. Auto-read OTP from URL (?otp=123456)
   useEffect(() => {
     const otpFromUrl = searchParams.get("otp");
     if (otpFromUrl && otpFromUrl.length === 6 && /^\d+$/.test(otpFromUrl)) {
-      const otpArray = otpFromUrl.split("");
-      setOtp(otpArray);
-      // Optional: Auto-submit if you want it to be instant
-      // handleVerify(null, otpArray.join(""));
+      setOtp(otpFromUrl.split(""));
     }
   }, [searchParams]);
 
-  // 2. Timer Logic
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (timer > 0) {
@@ -41,7 +37,6 @@ function OtpForm() {
   const handleChange = (index: number, value: string) => {
     if (isNaN(Number(value))) return;
     const newOtp = [...otp];
-    // Only take the last character if user types over
     newOtp[index] = value.substring(value.length - 1);
     setOtp(newOtp);
 
@@ -56,29 +51,23 @@ function OtpForm() {
     }
   };
 
-  // 3. Paste Support Logic
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
     const data = e.clipboardData.getData("text").trim();
-    if (!/^\d{6}$/.test(data)) return; // Only accept exactly 6 digits
-
-    const newOtp = data.split("");
-    setOtp(newOtp);
-    inputRefs.current[5]?.focus(); // Focus the last box
+    if (!/^\d{6}$/.test(data)) return;
+    setOtp(data.split(""));
+    inputRefs.current[5]?.focus();
   };
 
   const handleVerify = async (e?: React.FormEvent, manualOtp?: string) => {
     if (e) e.preventDefault();
     const codeToVerify = manualOtp || otp.join("");
-
     setIsLoading(true);
     setStatus(null);
 
-    // MOCK BACKEND
     setTimeout(() => {
       setIsLoading(false);
-      if (codeToVerify === "123456" || manualOtp) {
-        // Example success check
+      if (codeToVerify === "123456") {
         setStatus({
           type: "success",
           msg: "Account verified! Shielding up...",
@@ -97,7 +86,7 @@ function OtpForm() {
     <form onSubmit={(e) => handleVerify(e)} className="space-y-8">
       <StatusAlert status={status?.type || null} message={status?.msg || ""} />
 
-      {/* The "Board" Container for boxes */}
+      {/* The "Board" Container */}
       <div
         className="flex justify-between gap-2 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 shadow-inner"
         onPaste={handlePaste}
@@ -115,7 +104,7 @@ function OtpForm() {
             value={digit}
             onChange={(e) => handleChange(index, e.target.value)}
             onKeyDown={(e) => handleKeyDown(index, e)}
-            className="w-full h-14 text-center text-2xl font-black rounded-xl border-2 border-white bg-white text-slate-900 shadow-sm focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all border-black"
+            className="w-full h-14 text-center text-2xl font-black rounded-xl border-2 border-white bg-white text-slate-900 shadow-sm focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all"
           />
         ))}
       </div>
@@ -135,7 +124,7 @@ function OtpForm() {
           )}
         </Button>
 
-        <div className="text-center">
+        <div className="text-center space-y-6">
           {timer > 0 ? (
             <p className="text-sm text-slate-500 flex items-center justify-center gap-2">
               New code available in{" "}
@@ -152,18 +141,28 @@ function OtpForm() {
               <RefreshCw className="w-3 h-3" /> Resend Verification Code
             </button>
           )}
+
+          {/* --- GO BACK OPTION --- */}
+          <div className="pt-2 border-t border-slate-100">
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to login
+            </Link>
+          </div>
         </div>
       </div>
     </form>
   );
 }
 
-// Wrapping in Suspense because useSearchParams() requires it in Next.js App Router
 export default function OtpPage() {
   return (
     <AuthLayout
       title="Security Check"
-      subtitle="We've sent a 6-digit verification code to your registered email."
+      subtitle="Verify your identity to complete the authentication process."
     >
       <Suspense
         fallback={
