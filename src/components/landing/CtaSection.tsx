@@ -4,9 +4,10 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { motionProps } from "./SectionShared";
-import { CheckCircle, Zap, ShieldCheck, Terminal } from "lucide-react";
-
+import { CheckCircle, ShieldCheck, Terminal } from "lucide-react";
+import { useAuth } from "@/app/providers/AuthProvider";
 export default function CtaSection() {
+  const { user } = useAuth();
   return (
     <motion.section 
       {...motionProps} 
@@ -56,7 +57,7 @@ export default function CtaSection() {
             {/* Soft Shadow Glow for Light Mode */}
             <div className="absolute -inset-1 bg-emerald-400/20 rounded-xl blur-lg group-hover:bg-emerald-400/30 transition duration-300" />
             
-            <Link href="/dashboard">
+            <Link href={user?"/dashboard":"/login"}>
               <Button
                 size="lg"
                 className="relative bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-12 py-8 text-xl font-bold shadow-lg border-b-4 border-emerald-800 transition-all duration-200 active:border-b-0 active:translate-y-1"

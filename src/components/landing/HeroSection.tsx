@@ -16,7 +16,6 @@ const Globe = dynamic(() => import("./Globe").then((m) => m.Globe), {
 
 export default function HeroSection() {
   const { user } = useAuth();
-  console.log(user);
   return (
     <section className="w-full h-screen relative flex items-center justify-center text-center overflow-hidden bg-[#020817]">
       <LandingHeader />

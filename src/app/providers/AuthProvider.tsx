@@ -1,4 +1,3 @@
-// providers/AuthProvider.tsx
 "use client";
 
 import React, {
@@ -8,6 +7,7 @@ import React, {
   useMemo,
   useState,
   useCallback,
+  useRef,
 } from "react";
 
 type User = {
@@ -16,7 +16,10 @@ type User = {
   role?: string;
 } | null;
 
-type FetchWithAuth = (input: RequestInfo, init?: RequestInit) => Promise<Response>;
+type FetchWithAuth = (
+  input: RequestInfo,
+  init?: RequestInit,
+) => Promise<Response>;
 
 type AuthContextType = {
   user: User;
@@ -25,7 +28,10 @@ type AuthContextType = {
   fetchWithAuth: FetchWithAuth;
   refreshTokens: () => Promise<boolean>;
   logout: () => Promise<void>;
-  loginWithCredentials?: (body: { email: string; password: string }) => Promise<boolean>;
+  loginWithCredentials?: (body: {
+    email: string;
+    password: string;
+  }) => Promise<boolean>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,16 +45,15 @@ async function safeJson(res: Response) {
 }
 
 /**
- * AuthProvider - client-side
+ * AuthProvider
  *
- * Behavior:
- * - On mount: if initialUser exists -> use it. Otherwise call /api/user/me
- * - fetchWithAuth: wrapper that retries once after calling /api/auth/refresh on 401
- * - refreshTokens: POST /api/auth/refresh (credentials: 'include')
+ * - Fetches /api/user/me on mount (client-side) if no initialUser.
+ * - fetchWithAuth wraps fetch and retries once after a successful refresh.
+ * - refreshTokens uses a single shared in-flight promise to dedupe refresh requests.
  *
- * Notes:
- * - Backend endpoints are expected to set cookies (HttpOnly) on Set-Cookie.
- * - All fetches use `credentials: "include"` to allow browser to send/receive cookies.
+ * IMPORTANT:
+ * - Backend must set cookies (Set-Cookie) on refresh/login endpoints.
+ * - Ensure SameSite/Secure are set appropriately for cross-site usage (SameSite=None; Secure).
  */
 export function AuthProvider({
   initialUser,
@@ -60,41 +65,60 @@ export function AuthProvider({
   const [user, setUser] = useState<User>(initialUser ?? null);
   const [loading, setLoading] = useState<boolean>(initialUser == null);
 
-  const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "") || "";
+  const backendBase =
+    (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "") || "";
+
+  // refreshMutex holds the in-flight refresh promise (if any) so concurrent callers wait for the same refresh.
+  const refreshMutex = useRef<Promise<boolean> | null>(null);
 
   const refreshTokens = useCallback(async (): Promise<boolean> => {
-    try {
-      const refreshUrl = backendBase ? `${backendBase}/api/auth/refresh` : "/api/auth/refresh";
-      const res = await fetch(refreshUrl, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
+    // If a refresh is already in progress, return that promise.
+    if (refreshMutex.current) return refreshMutex.current;
 
-      if (!res.ok) {
+    const p = (async () => {
+      try {
+        const refreshUrl = backendBase
+          ? `${backendBase}/api/auth/refresh`
+          : "/api/auth/refresh";
+
+        const res = await fetch(refreshUrl, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        return res.ok;
+      } catch (err) {
+        console.error("refreshTokens error:", err);
         return false;
+      } finally {
+        // allow next refresh attempts
+        refreshMutex.current = null;
       }
-      return true;
-    } catch (err) {
-      console.error("refreshTokens error:", err);
-      return false;
-    }
+    })();
+
+    // store promise so others can await it
+    refreshMutex.current = p;
+    return p;
   }, [backendBase]);
 
   // wrapper fetch which retries once after performing token refresh on 401
   const fetchWithAuth: FetchWithAuth = useCallback(
     async (input, init = {}) => {
+      // default to include creds always
       const opts: RequestInit = {
         credentials: "include",
         ...init,
       };
 
+      // We use a helper to re-run the same request.
+      // WARNING: if init.body is a stream (FormData from a consumed source), retry won't work.
       const doFetch = async () => fetch(input, opts);
 
       let res = await doFetch();
       if (res.status !== 401) return res;
 
-      // got 401 -> try refresh
+      // got 401 -> attempt a single refresh (deduped by mutex)
       const refreshed = await refreshTokens();
       if (!refreshed) {
         // couldn't refresh -> return original 401
@@ -102,12 +126,11 @@ export function AuthProvider({
       }
 
       // refresh succeeded -> retry original request once
-      // Note: when body is a ReadableStream (FormData etc) this won't re-read;
-      // for simple JSON / string bodies it's fine.
+      // (Note: if body is a stream it may be unusable on retry; avoid streaming bodies for auth calls)
       res = await doFetch();
       return res;
     },
-    [refreshTokens]
+    [refreshTokens],
   );
 
   // Try to fetch current user on mount if initialUser not provided
@@ -120,7 +143,9 @@ export function AuthProvider({
       }
       setLoading(true);
       try {
-        const meUrl = backendBase ? `${backendBase}/api/user/me` : "/api/user/me";
+        const meUrl = backendBase
+          ? `${backendBase}/api/user/me`
+          : "/api/user/me";
         let res = await fetch(meUrl, {
           method: "GET",
           credentials: "include",
@@ -128,7 +153,7 @@ export function AuthProvider({
         });
 
         if (res.status === 401) {
-          // try refresh once
+          // try refresh once (deduped)
           const ok = await refreshTokens();
           if (ok) {
             res = await fetch(meUrl, {
@@ -161,10 +186,12 @@ export function AuthProvider({
     };
   }, [initialUser, backendBase, refreshTokens]);
 
-  // Basic logout helper: call backend logout endpoint and clear client user state
+  // logout helper: backend should clear cookies on logout
   const logout = useCallback(async () => {
     try {
-      const logoutUrl = backendBase ? `${backendBase}/api/auth/logout` : "/api/auth/logout";
+      const logoutUrl = backendBase
+        ? `${backendBase}/api/auth/logout`
+        : "/api/auth/logout";
       await fetch(logoutUrl, {
         method: "POST",
         credentials: "include",
@@ -177,11 +204,14 @@ export function AuthProvider({
     }
   }, [backendBase]);
 
-  // Optional convenience: login route that expects backend to set cookies and return user
+  // login helper
   const loginWithCredentials = useCallback(
     async (body: { email: string; password: string }) => {
       try {
-        const loginUrl = backendBase ? `${backendBase}/api/auth/login` : "/api/auth/login";
+       
+        const loginUrl = backendBase
+          ? `${backendBase}/api/auth/login`
+          : "/api/auth/login";
         const res = await fetch(loginUrl, {
           method: "POST",
           credentials: "include",
@@ -197,7 +227,7 @@ export function AuthProvider({
         return false;
       }
     },
-    [backendBase]
+    [backendBase],
   );
 
   const value = useMemo(
@@ -210,7 +240,15 @@ export function AuthProvider({
       logout,
       loginWithCredentials,
     }),
-    [user, setUser, loading, fetchWithAuth, refreshTokens, logout, loginWithCredentials]
+    [
+      user,
+      setUser,
+      loading,
+      fetchWithAuth,
+      refreshTokens,
+      logout,
+      loginWithCredentials,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
