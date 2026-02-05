@@ -27,14 +27,14 @@ export default async function RootLayout({
 
   try {
     // read cookies from incoming request
-    const cookieStore =await cookies();
-    const cookieHeader = cookieStore.toString(); 
+    const cookieStore = await cookies();
+    const cookieHeader = cookieStore.toString();
 
     const res = await fetch(`${process.env.BACKEND_URL}/api/user/me`, {
       method: "GET",
       headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
       cache: "no-store",
-      credentials:"include",
+      credentials: "include",
     });
 
     if (res.ok) {
@@ -59,6 +59,46 @@ export default async function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap"
           rel="stylesheet"
         />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="16x16"
+          href="/favicon_io/favicon-green-16x16.png"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="32x32"
+          href="/favicon_io/favicon-green-32x32.png"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="48x48"
+          href="/favicon_io/favicon-green-48x48.png"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="64x64"
+          href="/favicon_io/favicon-green-64x64.png"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="128x128"
+          href="/favicon_io/favicon-green-128x128.png"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="256x256"
+          href="/favicon_io/favicon-green-256x256.png"
+        />
+
+        {/* Optional: manifest for PWA */}
+        <link rel="manifest" href="/site.webmanifest" />
+        <link rel="manifest" href="/site.webmanifest" />
       </head>
       <body className="font-body antialiased">
         <AuthProvider initialUser={user}>
