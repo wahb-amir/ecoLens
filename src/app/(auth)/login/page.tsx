@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ArrowRight, Mail, Lock, Loader2 } from "lucide-react";
-
+import { useAuth } from "@/app/providers/AuthProvider";
 export default function LoginPage() {
   const router = useRouter();
+  const { user, syncUser } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{
     type: "error" | "success";
@@ -34,7 +35,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
         credentials: "include",
       });
-
+      await syncUser()
       const data = await response.json();
 
       if (!response.ok) {

@@ -258,7 +258,7 @@ export default function DashboardPage() {
                 <div className="flex justify-between items-center py-2 border-b border-slate-50">
                   <span className="text-slate-500">Points Earned</span>
                   <span className="text-xl font-bold text-emerald-600">
-                    {stats.ecoScore}
+                    100
                   </span>
                 </div>
                 <div className="pt-2">

@@ -6,9 +6,10 @@ import Link from "next/link"; // Added for navigation
 import { AuthLayout, StatusAlert } from "@/components/auth/auth-layout";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, ShieldCheck, ArrowLeft } from "lucide-react"; // Added ArrowLeft
-
+import { useAuth } from "@/app/providers/AuthProvider";
 function OtpForm() {
   const searchParams = useSearchParams();
+  const {syncUser}=useAuth()
   const router = useRouter();
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
@@ -74,7 +75,7 @@ function OtpForm() {
         body: JSON.stringify({ otp: codeToVerify }),
         credentials: "include", 
       });
-
+      await syncUser()
       const data = await response.json();
 
       if (!response.ok) {

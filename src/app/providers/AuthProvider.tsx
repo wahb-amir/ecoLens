@@ -28,6 +28,7 @@ type AuthContextType = {
   fetchWithAuth: FetchWithAuth;
   refreshTokens: () => Promise<boolean>;
   logout: () => Promise<void>;
+  syncUser: () => Promise<void>;
   loginWithCredentials?: (body: {
     email: string;
     password: string;
@@ -204,31 +205,34 @@ export function AuthProvider({
     }
   }, [backendBase]);
 
-  // login helper
-  const loginWithCredentials = useCallback(
-    async (body: { email: string; password: string }) => {
-      try {
-       
-        const loginUrl = backendBase
-          ? `${backendBase}/api/auth/login`
-          : "/api/auth/login";
-        const res = await fetch(loginUrl, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) return false;
-        const data = await safeJson(res);
-        setUser(data?.user ?? data ?? null);
-        return true;
-      } catch (err) {
-        console.error("login error:", err);
-        return false;
-      }
-    },
-    [backendBase],
-  );
+ const syncUser = useCallback(async (): Promise<void> => {
+  try {
+    const meUrl = backendBase ? `${backendBase}/api/user/me` : "/api/user/me";
+    const res = await fetch(meUrl, {
+      method: "GET",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (res.ok) {
+      const data = await safeJson(res);
+      // normalize so {} becomes null
+      const normalizedUser =
+        data?.user && Object.keys(data.user).length > 0
+          ? data.user
+          : Object.keys(data || {}).length > 0
+          ? data
+          : null;
+
+      setUser(normalizedUser);
+    } else {
+      setUser(null);
+    }
+  } catch (err) {
+    console.error("syncUser failed:", err);
+    setUser(null);
+  }
+}, [backendBase]);
 
   const value = useMemo(
     () => ({
@@ -238,7 +242,8 @@ export function AuthProvider({
       fetchWithAuth,
       refreshTokens,
       logout,
-      loginWithCredentials,
+      syncUser
+    
     }),
     [
       user,
@@ -247,7 +252,7 @@ export function AuthProvider({
       fetchWithAuth,
       refreshTokens,
       logout,
-      loginWithCredentials,
+      syncUser
     ],
   );
 
