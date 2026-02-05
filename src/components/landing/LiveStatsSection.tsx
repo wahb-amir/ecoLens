@@ -19,7 +19,15 @@ interface LiveStat {
 }
 
 export default function LiveStatsSection() {
-  const [timestamp, setTimestamp] = useState(new Date().toLocaleTimeString());
+  const [timestamp, setTimestamp] = useState<string>("--:--:--");
+
+  useEffect(() => {
+    const update = () => setTimestamp(new Date().toLocaleTimeString());
+
+    update(); 
+    const timer = setInterval(update, 2500);
+    return () => clearInterval(timer);
+  }, []);
 
   // State for live fluctuating values
   const [stats, setStats] = useState<LiveStat[]>([
