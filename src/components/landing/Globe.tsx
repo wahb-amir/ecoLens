@@ -34,14 +34,18 @@ const WASTE_COLORS = {
 const isIOS15Safari = (() => {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
-  const isiOS = /iP(hone|ad|od)/.test(navigator.platform) || /iPhone|iPad|iPod/.test(ua);
+  const isiOS =
+    /iP(hone|ad|od)/.test(navigator.platform) || /iPhone|iPad|iPod/.test(ua);
   return isiOS && /Version\/15\./.test(ua);
 })();
 
 // robust UUID fallback
 function uid(): string {
   try {
-    if (typeof crypto !== "undefined" && typeof (crypto as any).randomUUID === "function") {
+    if (
+      typeof crypto !== "undefined" &&
+      typeof (crypto as any).randomUUID === "function"
+    ) {
       return (crypto as any).randomUUID();
     }
   } catch (e) {
@@ -193,7 +197,12 @@ function WasteStream({ scale = 1 }: { scale?: number }) {
       if (!mounted) return;
       try {
         const pos = randomUnitVector().multiplyScalar(1.01);
-        const types: WasteType[] = ["plastic", "plastic", "organic", "hazardous"];
+        const types: WasteType[] = [
+          "plastic",
+          "plastic",
+          "organic",
+          "hazardous",
+        ];
         const type = types[Math.floor(Math.random() * types.length)];
 
         const newEvent: WasteEvent = {
@@ -236,7 +245,10 @@ function WasteStream({ scale = 1 }: { scale?: number }) {
 
 function Planet({ axialTilt }: { axialTilt: number }) {
   // choose fallback for planet texture as well
-  const planetSrc = isIOS15Safari ? "/earth_atmos_2048.jpg" : "/earth_atmos_2048.avif";
+  const planetSrc = isIOS15Safari ? "/earth_day.jpg" : "/earth_day.avif";
+  const planetNightSrc = isIOS15Safari
+    ? "/earth_night.jpg"
+    : "/earth_night.avif";
   const dayTexture = useTexture(planetSrc);
 
   if (dayTexture) {
