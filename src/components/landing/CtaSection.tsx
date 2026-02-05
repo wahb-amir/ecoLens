@@ -81,14 +81,7 @@ export default function CtaSection() {
           </div>
         </div>
 
-        {/* 6. Technical Footer Log */}
-        <div className="mt-20 border-t border-slate-100 pt-8">
-          <p className="text-[10px] font-mono text-slate-400 flex items-center justify-center gap-4">
-            <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-emerald-500" /> CONNECTION: ENCRYPTED</span>
-            <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-emerald-500" /> LATENCY: 24MS</span>
-            <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-emerald-500" /> NODE: GLOBAL_EDGE</span>
-          </p>
-        </div>
+       
       </div>
     </motion.section>
   );
