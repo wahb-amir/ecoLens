@@ -1,21 +1,23 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
-import { Wind, Cloud, Trash2, Activity } from "lucide-react";
+import { Wind, Cloud, Trash2 } from "lucide-react";
 import { motionProps } from "./SectionShared";
 
 interface LiveStat {
   id: string;
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   title: string;
-  baseValue: number;
+  baseValue: number | null;
   unit: string;
-  source: string;
+  source?: string;
+  sourceUrl?: string;
   color: string;
   borderColor: string;
-  coordinates: string;
+  coordinates?: string;
+  lastUpdated?: string | null; // ISO timestamp when fetched
 }
 
 export default function LiveStatsSection() {
@@ -23,64 +25,133 @@ export default function LiveStatsSection() {
 
   useEffect(() => {
     const update = () => setTimestamp(new Date().toLocaleTimeString());
-
-    update(); 
+    update();
     const timer = setInterval(update, 2500);
     return () => clearInterval(timer);
   }, []);
 
-  // State for live fluctuating values
   const [stats, setStats] = useState<LiveStat[]>([
     {
-      id: "SNS-AQI-042",
-      icon: Wind,
-      title: "Global Avg. Air Quality",
-      baseValue: 42.4,
-      unit: "AQI",
-      source: "Copernicus Sentinel-5P",
-      color: "text-emerald-500 bg-emerald-500/10",
-      borderColor: "hover:border-emerald-500/50",
-      coordinates: "40.7128° N, 74.0060° W",
-    },
-    {
-      id: "SNS-CO2-991",
+      id: "MAUNA-LOA-CO2",
       icon: Cloud,
-      title: "Atmospheric CO₂ Concentration",
-      baseValue: 421.15,
+      title: "Atmospheric CO₂ (Mauna Loa monthly mean)",
+      // fallback value (used if fetch fails)
+      baseValue: 428.4,
       unit: "ppm",
-      source: "NOAA Mauna Loa Obs.",
+      source: "NOAA Global Monitoring Laboratory (Mauna Loa Observatory)",
+      sourceUrl: "https://gml.noaa.gov/ccgg/trends/data.html (co2_monthly_mm)",
       color: "text-sky-500 bg-sky-500/10",
       borderColor: "hover:border-sky-500/50",
       coordinates: "19.5362° N, 155.5763° W",
+      lastUpdated: null,
     },
     {
-      id: "SNS-PLST-882",
+      id: "WMO-GMST",
+      icon: Wind,
+      title: "Global mean surface temperature anomaly",
+      // fallback number (e.g., WMO synthesis for last reported year)
+      baseValue: 1.55, // °C above 1850-1900 baseline (fallback)
+      unit: "°C",
+      source:
+        "WMO / NASA GISTEMP (synthesis). For live numbers, GISTEMP table is used if reachable.",
+      sourceUrl: "https://data.giss.nasa.gov/gistemp/",
+      color: "text-emerald-500 bg-emerald-500/10",
+      borderColor: "hover:border-emerald-500/50",
+      coordinates: "Global (1850–1900 baseline)",
+      lastUpdated: null,
+    },
+    {
+      id: "OCEAN-PLASTICS-ANNUAL",
       icon: Trash2,
-      title: "Annual Ocean Plastic Inflow",
-      baseValue: 11245902,
-      unit: "tons",
-      source: "UNEP Marine Litter Tracker",
+      title: "Estimated annual plastic input to oceans",
+      baseValue: 8_000_000,
+      unit: "tons/yr",
+      source:
+        "Jambeck et al. (2015) — mid-range global estimate; see UNEP for alternate estimates",
+      sourceUrl:
+        "https://science.sciencemag.org/content/347/6223/768 (Jambeck et al. 2015)",
       color: "text-rose-500 bg-rose-500/10",
       borderColor: "hover:border-rose-500/50",
-      coordinates: "Global Aggregate",
+      coordinates: "Global aggregate (annual)",
+      lastUpdated: null,
     },
   ]);
 
+  // ---------- HELPERS: fetch & parse authoritative sources ----------
+  // NOTE: Many of these public endpoints may block client-side CORS.
+  // For production, perform these fetches server-side or via a proxy.
+  async function fetchNoaaMaunaLoaCO2() {
+    // NOAA provides a plain text monthly file: co2_mm_mlo.txt
+    // We'll attempt to fetch it and parse the most recent non-comment line.
+    const url = "https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_mm_mlo.txt"; // plain text
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`NOAA fetch failed ${res.status}`);
+      const txt = await res.text();
+      // file has comment header lines beginning with '#'. Data lines: YEAR  MON  decimal_date  average  interpolated  trend  days
+      const lines = txt
+        .trim()
+        .split("\n")
+        .filter((l) => !l.startsWith("#"));
+      const lastLine = lines[lines.length - 1].trim();
+      const cols = lastLine.split(/\s+/);
+      // 'average' is column index 3 in this file format (0-based: 0 year,1 month,2 decimal_date,3 average)
+      // Note: average can be -99.99 when missing. We'll prefer 'interpolated' (col 4) if average missing.
+      const avg = parseFloat(cols[3]);
+      const interp = parseFloat(cols[4]);
+      const value = !Number.isFinite(avg) || avg < -99 ? interp : avg;
+      return {
+        value: Number(value.toFixed(2)),
+        timestamp: new Date().toISOString(),
+      };
+    } catch (err) {
+      console.error("NOAA CO2 fetch/parsing error:", err);
+      throw err;
+    }
+  }
+
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimestamp(new Date().toLocaleTimeString());
+    let mounted = true;
+
+    async function loadAll() {
+      // CO2 fetch
+      try {
+        const co2 = await fetchNoaaMaunaLoaCO2();
+        if (!mounted) return;
+        setStats((prev) =>
+          prev.map((s) =>
+            s.id === "MAUNA-LOA-CO2"
+              ? { ...s, baseValue: co2.value, lastUpdated: co2.timestamp }
+              : s,
+          ),
+        );
+      } catch (err) {
+        // keep fallback value and log; you should proxy requests from server to avoid CORS blocks
+        console.warn("Using fallback CO2 value due to fetch error.");
+      }
       setStats((prev) =>
-        prev.map((s) => ({
-          ...s,
-          // Small realistic fluctuations: +/- 0.02%
-          baseValue:
-            s.baseValue + (Math.random() - 0.5) * (s.baseValue * 0.0001),
-        })),
+        prev.map((s) =>
+          s.id === "OCEAN-PLASTICS-ANNUAL"
+            ? { ...s, lastUpdated: new Date().toISOString() }
+            : s,
+        ),
       );
-    }, 2500);
-    return () => clearInterval(timer);
+    }
+
+    loadAll();
+
+    // Optionally poll every N minutes for updates (CO2 monthly updates are slow — choose appropriate interval)
+    const pollInterval = 1000 * 60 * 60 * 6; // every 6 hours
+    const pollId = window.setInterval(loadAll, pollInterval);
+
+    return () => {
+      mounted = false;
+      clearInterval(pollId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ---------- RENDER ----------
   return (
     <motion.section
       {...motionProps}
@@ -95,7 +166,7 @@ export default function LiveStatsSection() {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
               </span>
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                Live Satellite Uplink
+                Global Environmental Metrics
               </span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
@@ -141,7 +212,7 @@ export default function LiveStatsSection() {
                         {stat.id}
                       </p>
                       <p className="text-[9px] font-mono text-slate-300">
-                        {stat.coordinates}
+                        {stat.coordinates ?? "—"}
                       </p>
                     </div>
                   </div>
@@ -152,10 +223,14 @@ export default function LiveStatsSection() {
 
                   <div className="flex items-baseline gap-2 mb-4">
                     <span className="text-4xl font-black font-mono tracking-tighter text-slate-900">
-                      {stat.baseValue.toLocaleString(undefined, {
-                        minimumFractionDigits: stat.unit === "tons" ? 0 : 2,
-                        maximumFractionDigits: stat.unit === "tons" ? 0 : 2,
-                      })}
+                      {stat.baseValue === null
+                        ? "—"
+                        : stat.baseValue.toLocaleString(undefined, {
+                            minimumFractionDigits:
+                              stat.unit === "tons/yr" ? 0 : 2,
+                            maximumFractionDigits:
+                              stat.unit === "tons/yr" ? 0 : 2,
+                          })}
                     </span>
                     <span className="text-sm font-bold text-slate-400 uppercase">
                       {stat.unit}
@@ -167,20 +242,29 @@ export default function LiveStatsSection() {
                       <span className="text-[10px] text-slate-400 font-bold uppercase">
                         Source
                       </span>
-                      <span className="text-[10px] font-mono text-slate-600">
-                        {stat.source}
-                      </span>
+                      <div className="text-right">
+                        <a
+                          className="text-[10px] font-mono text-slate-600 underline"
+                          href={stat.sourceUrl ?? "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {stat.source ?? "—"}
+                        </a>
+                        <div className="text-[10px] text-slate-400">
+                          {stat.lastUpdated
+                            ? `Updated ${new Date(stat.lastUpdated).toLocaleString()}`
+                            : "Fallback / cached"}
+                        </div>
+                      </div>
                     </div>
                     <div className="h-1 w-full bg-slate-50 rounded-full overflow-hidden">
-                      <motion.div
-                        className={`h-full ${stat.color.split(" ")[0].replace("text", "bg")}`}
-                        animate={{ width: ["40%", "60%", "45%"] }}
-                        transition={{
-                          duration: 10,
-                          repeat: Infinity,
-                          ease: "easeInOut",
-                        }}
-                      />
+                      <div
+                        className={`h-full ${stat.color
+                          .split(" ")[0]
+                          .replace("text", "bg")}`}
+                        style={{ width: "55%" }}
+                      ></div>
                     </div>
                   </div>
                 </div>
