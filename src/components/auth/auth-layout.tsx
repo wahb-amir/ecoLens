@@ -1,11 +1,12 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation"; // Import Router
 import { motion } from "framer-motion";
 import { CheckCircle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/app/providers/AuthProvider";
 
-// 1. Exporting AuthLayout as a named export
 export function AuthLayout({
   children,
   title,
@@ -15,6 +16,20 @@ export function AuthLayout({
   title: string;
   subtitle: string;
 }) {
+  const router = useRouter();
+
+  // Destructure user from your custom hook
+  const { user } = useAuth();
+
+  // The navigation logic
+  const handleLogoClick = () => {
+    if (user) {
+      router.push("/dashboard");
+    } else {
+      router.push("/");
+    }
+  };
+
   return (
     <div className="min-h-screen w-full flex bg-white">
       {/* LEFT: Technical Side Panel (Hidden on Mobile) */}
@@ -40,8 +55,14 @@ export function AuthLayout({
         />
 
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-8 group cursor-default">
-            <span className="font-black text-2xl tracking-tighter uppercase">
+          <div className="flex items-center gap-3 mb-8 group w-fit">
+            {/* Added onClick handler here. 
+                Using w-fit ensures only the text is clickable, not the whole row.
+            */}
+            <span
+              onClick={handleLogoClick}
+              className="font-black text-2xl tracking-tighter uppercase cursor-pointer hover:opacity-80 transition-opacity"
+            >
               Eco<span className="text-emerald-500">Lens</span>
             </span>
           </div>
@@ -62,8 +83,6 @@ export function AuthLayout({
               community-driven conservation protocols.
             </p>
           </motion.div>
-
-         
         </div>
 
         <div className="relative z-10 flex items-center gap-4 text-[10px] font-mono text-slate-500 uppercase tracking-widest">
