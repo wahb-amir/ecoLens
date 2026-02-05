@@ -53,27 +53,27 @@ export default function NotFound() {
       >
         {/* --- Text Content --- */}
         <div className="flex flex-col items-center lg:items-start text-center lg:text-left max-w-lg">
-          <motion.div variants={itemVariants}>
+          <motion.div >
             <p className="text-emerald-400 font-mono uppercase tracking-[0.3em] text-sm font-bold mb-4">
               Error Code: 404
             </p>
           </motion.div>
           
           <motion.h1 
-            variants={itemVariants}
+            
             className="text-6xl md:text-8xl font-black tracking-tighter mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white to-slate-400"
           >
             Lost in the Cosmos.
           </motion.h1>
           
           <motion.p 
-            variants={itemVariants}
+    
             className="text-slate-400 text-lg md:text-xl leading-relaxed mb-8"
           >
             The coordinates you're looking for don't exist in our star maps. You may have taken a wrong turn at the last nebula.
           </motion.p>
 
-          <motion.div variants={itemVariants}>
+          <motion.div >
             <Link href="/">
               <Button size="lg" className="group relative overflow-hidden bg-white text-slate-900 hover:bg-emerald-500 hover:text-white transition-all duration-300 px-8 py-6 text-lg font-bold rounded-xl">
                 <span className="relative z-10 flex items-center gap-2">
@@ -87,7 +87,7 @@ export default function NotFound() {
 
         {/* --- The Rotating Globe Visual --- */}
         <motion.div 
-          variants={itemVariants}
+          
           className="relative w-72 h-72 md:w-[500px] md:h-[500px] flex-shrink-0"
         >
           {/* 1. The Atmosphere Glow (Outer Ring) */}
