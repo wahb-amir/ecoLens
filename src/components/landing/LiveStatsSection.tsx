@@ -188,11 +188,6 @@ export default function LiveStatsSection() {
             );
           })}
         </div>
-
-        <p className="mt-8 text-center text-[10px] text-slate-400 font-mono uppercase tracking-[0.2em]">
-          End of Transmission // Data Synced via Decentralized Environmental
-          Nodes
-        </p>
       </div>
     </motion.section>
   );
