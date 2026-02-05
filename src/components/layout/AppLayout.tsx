@@ -14,7 +14,7 @@ export function AppLayout({
   initialUser,
 }: {
   children: React.ReactNode;
-  initialUser: User;
+  initialUser?: User;
 }) {
   return (
     <AuthProvider initialUser={initialUser}>

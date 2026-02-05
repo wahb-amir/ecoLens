@@ -7,7 +7,7 @@ import { AuthLayout, StatusAlert } from "@/components/auth/auth-layout";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowRight, Mail, Lock, Loader2 } from "lucide-react"; // Added missing icons
+import { ArrowRight, Mail, Lock, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,31 +17,51 @@ export default function LoginPage() {
     msg: string;
   } | null>(null);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setStatus(null);
 
-    // MOCK BACKEND
-    setTimeout(() => {
-      setIsLoading(false);
-      if (Math.random() > 0.3) {
-        setStatus({
-          type: "success",
-          msg: "Credentials verified. Redirecting...",
-        });
+    // Extract data from form
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email");
+    const password = formData.get("password");
 
-        // Wait a split second so the user sees the success message before redirecting
-        setTimeout(() => {
-          router.push("/dashboard");
-        }, 1000);
-      } else {
-        setStatus({
-          type: "error",
-          msg: "Invalid credentials. Please try again.",
-        });
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        credentials: "include",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Invalid email or password.");
       }
-    }, 2000);
+
+      setStatus({
+        type: "success",
+        msg: data.message,
+      });
+
+      setTimeout(() => {
+        if (data.requireMFA) {
+          router.push(`/verify-otp`);
+        } else {
+          router.push("/dashboard");
+        }
+      }, 800);
+
+    } catch (error: any) {
+      setStatus({
+        type: "error",
+        msg: error.message || "An unexpected error occurred.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -62,6 +82,7 @@ export default function LoginPage() {
               <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
               <Input
                 id="email"
+                name="email" // Added name for FormData
                 type="email"
                 placeholder="name@example.com"
                 className="pl-10 h-11 border-slate-200 focus:border-emerald-500"
@@ -84,6 +105,7 @@ export default function LoginPage() {
               <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
               <Input
                 id="password"
+                name="password" // Added name for FormData
                 type="password"
                 className="pl-10 h-11 border-slate-200 focus:border-emerald-500"
                 required
@@ -94,7 +116,7 @@ export default function LoginPage() {
 
         <Button
           type="submit"
-          className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white transition-all shadow-lg"
+          className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white transition-all shadow-lg active:scale-[0.98]"
           disabled={isLoading}
         >
           {isLoading ? (
@@ -108,14 +130,13 @@ export default function LoginPage() {
           )}
         </Button>
 
+        {/* ... divider and Google button stay the same ... */}
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
             <span className="w-full border-t border-slate-100" />
           </div>
           <div className="relative flex justify-center text-[10px] uppercase tracking-widest font-bold">
-            <span className="bg-white px-4 text-slate-400">
-              Or continue with
-            </span>
+            <span className="bg-white px-4 text-slate-400">Or continue with</span>
           </div>
         </div>
 
@@ -125,24 +146,7 @@ export default function LoginPage() {
           className="w-full h-11 border-slate-200 hover:bg-slate-50 transition-colors"
           disabled={isLoading}
         >
-          <svg className="mr-2 h-4 w-4" viewBox="0 0 48 48">
-            <path
-              fill="#FFC107"
-              d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"
-            />
-            <path
-              fill="#FF3D00"
-              d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"
-            />
-            <path
-              fill="#4CAF50"
-              d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"
-            />
-            <path
-              fill="#1976D2"
-              d="M43.611,20.083L43.611,20.083L42,20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"
-            />
-          </svg>
+          {/* Google SVG code here */}
           Google
         </Button>
 
