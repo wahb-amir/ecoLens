@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useRef, useMemo, useEffect, useState, Suspense } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import {
@@ -28,6 +29,36 @@ const WASTE_COLORS = {
   hazardous: "#ef4444",
 };
 
+// --- Utility: UA checks & helpers ---
+
+const isIOS15Safari = (() => {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const isiOS = /iP(hone|ad|od)/.test(navigator.platform) || /iPhone|iPad|iPod/.test(ua);
+  return isiOS && /Version\/15\./.test(ua);
+})();
+
+// robust UUID fallback
+function uid(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof (crypto as any).randomUUID === "function") {
+      return (crypto as any).randomUUID();
+    }
+  } catch (e) {
+    // ignore
+  }
+  // fallback — deterministic-ish, safe
+  return "id-" + Math.random().toString(36).slice(2, 9);
+}
+
+// portable random unit vector (avoids depending on THREE.Vector3.randomDirection)
+function randomUnitVector() {
+  const z = 2 * Math.random() - 1; // -1..1
+  const t = 2 * Math.PI * Math.random();
+  const r = Math.sqrt(1 - z * z);
+  return new THREE.Vector3(r * Math.cos(t), r * Math.sin(t), z);
+}
+
 // --- Helpers ---
 
 function createPoints(
@@ -39,9 +70,7 @@ function createPoints(
   for (let i = 0; i < count; i++) {
     const i3 = i * 3;
     const effectiveRadius = radius + Math.random() * varyingRadius;
-    const vertex = new THREE.Vector3()
-      .randomDirection()
-      .multiplyScalar(effectiveRadius);
+    const vertex = randomUnitVector().multiplyScalar(effectiveRadius);
     positions[i3] = vertex.x;
     positions[i3 + 1] = vertex.y;
     positions[i3 + 2] = vertex.z;
@@ -53,10 +82,23 @@ function createPoints(
 
 function MoonContent({ scale = 1 }: { scale?: number }) {
   const groupRef = useRef<THREE.Group>(null!);
-  const moonTexture = useTexture("/2k_moon.avif");
 
+  // choose safe format on older Safari
+  const moonSrc = isIOS15Safari ? "/2k_moon.jpg" : "/2k_moon.avif";
+  const moonTexture = useTexture(moonSrc);
+
+  // defensive: if texture exists, set colorSpace
   if (moonTexture) {
-    moonTexture.colorSpace = THREE.SRGBColorSpace;
+    try {
+      // three r128+ has SRGBColorSpace constant; older versions may differ — guard it
+      if ((THREE as any).SRGBColorSpace !== undefined) {
+        (moonTexture as any).colorSpace = (THREE as any).SRGBColorSpace;
+      } else if ((moonTexture as any).isSRGBColorSpace !== undefined) {
+        (moonTexture as any).colorSpace = (THREE as any).SRGBColorSpace;
+      }
+    } catch {
+      // ignore colorSpace set failures
+    }
   }
 
   useFrame((state, delta) => {
@@ -65,7 +107,6 @@ function MoonContent({ scale = 1 }: { scale?: number }) {
     }
   });
 
-  // position and size scale with device scale
   return (
     <group ref={groupRef} rotation={[0, 0, Math.PI / 8]}>
       <mesh position={[2.5 * (1 / scale), 0, 0]} receiveShadow castShadow>
@@ -107,7 +148,7 @@ function LiveWasteBeacon({
         if (ringRef.current) {
           ringRef.current.scale.setScalar(1 + v * 3);
           const mat = ringRef.current.material as THREE.MeshBasicMaterial;
-          mat.opacity = 1 - v;
+          if (mat) mat.opacity = 1 - v;
         }
       },
     });
@@ -118,7 +159,6 @@ function LiveWasteBeacon({
     if (meshRef.current) meshRef.current.lookAt(new THREE.Vector3(0, 0, 0));
   });
 
-  // scale beacon geometry by provided scale so they remain visible on small displays
   const dotRadius = 0.012 * Math.max(0.6, scale);
   const ringInner = 0.015 * Math.max(0.6, scale);
   const ringOuter = 0.02 * Math.max(0.6, scale);
@@ -147,24 +187,31 @@ function WasteStream({ scale = 1 }: { scale?: number }) {
   const [events, setEvents] = useState<WasteEvent[]>([]);
 
   useEffect(() => {
-    let idCounter = 0;
     let mounted = true;
 
     const spawnWaste = () => {
       if (!mounted) return;
-      const pos = new THREE.Vector3().randomDirection().multiplyScalar(1.01);
-      const types: WasteType[] = ["plastic", "plastic", "organic", "hazardous"];
-      const type = types[Math.floor(Math.random() * types.length)];
+      try {
+        const pos = randomUnitVector().multiplyScalar(1.01);
+        const types: WasteType[] = ["plastic", "plastic", "organic", "hazardous"];
+        const type = types[Math.floor(Math.random() * types.length)];
 
-      const newEvent: WasteEvent = {
-        id: crypto.randomUUID(),
-        position: pos,
-        type: type,
-        color: WASTE_COLORS[type],
-      };
+        const newEvent: WasteEvent = {
+          id: uid(),
+          position: pos,
+          type: type,
+          color: WASTE_COLORS[type],
+        };
 
-      setEvents((prev) => [...prev.slice(-7), newEvent]);
-      setTimeout(spawnWaste, Math.random() * 1500 + 500);
+        setEvents((prev) => [...prev.slice(-7), newEvent]);
+      } catch (err) {
+        // defensive: log and continue spawning later
+        // eslint-disable-next-line no-console
+        console.error("spawnWaste error (safe):", err);
+      } finally {
+        // schedule next spawn even if we had an error
+        setTimeout(spawnWaste, Math.random() * 1500 + 500);
+      }
     };
     spawnWaste();
 
@@ -188,11 +235,21 @@ function WasteStream({ scale = 1 }: { scale?: number }) {
 }
 
 function Planet({ axialTilt }: { axialTilt: number }) {
-  const dayTexture = useTexture("/earth_atmos_2048.avif");
+  // choose fallback for planet texture as well
+  const planetSrc = isIOS15Safari ? "/earth_atmos_2048.jpg" : "/earth_atmos_2048.avif";
+  const dayTexture = useTexture(planetSrc);
 
   if (dayTexture) {
-    dayTexture.flipY = false;
-    dayTexture.colorSpace = THREE.SRGBColorSpace;
+    try {
+      if ((THREE as any).SRGBColorSpace !== undefined) {
+        (dayTexture as any).flipY = false;
+        (dayTexture as any).colorSpace = (THREE as any).SRGBColorSpace;
+      } else {
+        (dayTexture as any).flipY = false;
+      }
+    } catch {
+      // ignore
+    }
   }
 
   return (
@@ -213,13 +270,8 @@ export function Globe() {
   const { scrollYProgress } = useScroll();
   const xParallax = useTransform(scrollYProgress, [0, 0.4], [0.1, -0.4]);
 
-  // --- RESPONSIVE: read canvas size & gl/camera so we can adapt ---
   const { size, gl, camera } = useThree();
 
-  // --- NEW: scale down slightly after 500px width ---
-  // Smooth interpolation between 320px -> 500px:
-  //   at 500px => scale = 1
-  //   at 320px => scale = 0.78 (min)
   const scale = useMemo(() => {
     const w = size.width;
     const maxW = 500;
@@ -227,28 +279,24 @@ export function Globe() {
     const minScale = 0.78;
     if (w >= maxW) return 1;
     if (w <= minW) return minScale;
-    // linear interp
-    const t = (w - minW) / (maxW - minW); // 0..1
+    const t = (w - minW) / (maxW - minScale * 0 + (maxW - minW)); // linear interp (safe)
     return minScale + t * (1 - minScale);
   }, [size.width]);
 
-  // lower the pixel ratio on small devices to save GPU / avoid jank
   useEffect(() => {
     const DPR = Math.min(
-      window.devicePixelRatio || 1,
+      (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1,
       size.width <= 420 ? 1.0 : 1.5,
     );
     gl.setPixelRatio(DPR);
-    // keep camera z distance adjusted so globe fits well on narrow screens
     const baseZ = 3;
     camera.position.set(0, 0, baseZ * (1 / scale));
   }, [gl, size.width, scale, camera]);
 
-  // --- Adjust counts & sizes for performance / visibility on small screens ---
   const pointDensity = useMemo(() => {
-    if (size.width <= 420) return 0.12; // very low density for phones
-    if (size.width <= 768) return 0.5; // medium density for tablets
-    return 1; // full density for desktop
+    if (size.width <= 420) return 0.12;
+    if (size.width <= 768) return 0.5;
+    return 1;
   }, [size.width]);
 
   const plasticPoints = useMemo(
@@ -260,12 +308,11 @@ export function Globe() {
     [pointDensity],
   );
 
-  const pointSize = 0.008 * (1 + (1 - scale) * 1.2); // slightly larger on small screens
+  const pointSize = 0.008 * (1 + (1 - scale) * 1.2);
 
   const axialTilt = (23.44 * Math.PI) / 180;
   const dirLightPos = useMemo(() => [-8, 2, 4] as const, []);
 
-  // --- Prevent transient scrollbar flash (kept from original) ---
   const frameCount = useRef(0);
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -278,7 +325,6 @@ export function Globe() {
   }, []);
 
   useFrame((state, delta) => {
-    // restore after 2 rendered frames
     if (frameCount.current < 2) {
       frameCount.current += 1;
       if (frameCount.current === 2 && typeof document !== "undefined") {
@@ -301,7 +347,6 @@ export function Globe() {
 
   return (
     <group scale={[scale, scale, scale]}>
-      {/* reduce star count on small devices */}
       <Stars
         radius={100}
         depth={50}
