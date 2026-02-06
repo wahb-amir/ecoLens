@@ -5,17 +5,16 @@ import { useAuth } from "../providers/AuthProvider";
 import { useRouter } from "next/navigation";
 
 export function ClientAuthWrapper({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user,loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!user) {
-      console.log(user);
+    if (!user && !loading) {
       router.replace("/login");
     }
-  }, [user, router]);
+  }, [user, router,loading]);
 
-  if (!user) return null;
+  if (!user && !loading) return null;
 
   return <>{children}</>;
 }
