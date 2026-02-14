@@ -189,7 +189,9 @@ export default function DashboardPage() {
   // ---------------------------------------------------------
   // Helpers for parsing predictions
   // ---------------------------------------------------------
-  const normalizePredsFromObj = (obj: any): { label: string; prob: number }[] => {
+  const normalizePredsFromObj = (
+    obj: any,
+  ): { label: string; prob: number }[] => {
     // obj could be:
     // - object mapping label->prob
     // - string label
@@ -210,9 +212,14 @@ export default function DashboardPage() {
             return { label: it[0], prob: Number(it[1]) || 0 };
           if (typeof it === "object" && it !== null) {
             // maybe {label:..., prob:...} or {"label":prob}
-            if (it.label && it.prob !== undefined) return { label: it.label, prob: Number(it.prob) || 0 };
+            if (it.label && it.prob !== undefined)
+              return { label: it.label, prob: Number(it.prob) || 0 };
             const keys = Object.keys(it);
-            if (keys.length === 2 && keys.includes("label") && keys.includes("prob"))
+            if (
+              keys.length === 2 &&
+              keys.includes("label") &&
+              keys.includes("prob")
+            )
               return { label: String(it.label), prob: Number(it.prob) || 0 };
             // fallback: first key as label, value as prob
             return { label: keys[0], prob: Number(it[keys[0]]) || 0 };
@@ -239,125 +246,83 @@ export default function DashboardPage() {
   // API / PREDICTION LOGIC (auto-detect HF Space vs custom backend)
   // ---------------------------------------------------------
 
+  // Replace your current uploadForPrediction with this exact function
   const uploadForPrediction = async (dataUrl: string) => {
     setIsUploading(true);
     setGeneralError(null);
     setPredictions(null);
     setMeta(null);
 
-    // small helper: timeout fetch
     const timeoutMs = 30000;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_CNN_URL?.replace(/\/+$/, "") || "";
-      const isHfSpace = baseUrl.includes("huggingface.co/spaces");
+      // POST the dataUrl to our Next.js proxy endpoint
+      const res = await fetch("/api/predict", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ dataUrl }),
+        signal: controller.signal,
+        // credentials: "include", // uncomment if you need cookies forwarded to Next.js
+      });
 
-      if (isHfSpace) {
-        // Gradio-style Space: POST JSON { data: [dataUrl] } to /api/predict/
-        const apiUrl = `${baseUrl}/api/predict/`;
-        const res = await fetch(apiUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ data: [dataUrl] }),
-          signal: controller.signal,
-        });
-
-        if (!res.ok) {
-          throw new Error(`Server error: ${res.status}`);
+      if (!res.ok) {
+        // try to surface useful error message
+        let errText = `Server error: ${res.status}`;
+        try {
+          const json = await res.json();
+          if (json?.detail) errText += ` - ${json.detail}`;
+          else if (json?.error) errText += ` - ${json.error}`;
+        } catch {
+          // ignore parse error
         }
-
-        const payload = await res.json();
-
-        // Gradio outputs vary:
-        // - payload.data: usually an array with prediction(s)
-        // - payload.duration (optional)
-        // - some Spaces return {data: ["label"]} or {data: [ {"label":prob,...} ] }
-        // We'll try several fallbacks.
-        let predsRaw: any = null;
-        if (payload.predictions) predsRaw = payload.predictions;
-        else if (payload.data && payload.data.length > 0) predsRaw = payload.data[0];
-        else if (payload.data) predsRaw = payload.data;
-        else if (Array.isArray(payload) && payload.length > 0) predsRaw = payload[0];
-        else predsRaw = payload; // last resort
-
-        const parsed = normalizePredsFromObj(predsRaw);
-
-        // If parsed is mapping style, sort and slice top 5
-        const final =
-          parsed.length > 0
-            ? parsed.sort((a, b) => b.prob - a.prob).slice(0, 5)
-            : [{ label: String(predsRaw ?? "Unknown"), prob: 0 }];
-
-        setPredictions(final);
-        setMeta({
-          inference_time: payload.duration ?? null,
-        });
-      } else {
-        // Custom FastAPI backend: send multipart/form-data to /api/predict
-        const resBlob = await fetch(dataUrl);
-        const blob = await resBlob.blob();
-
-        const formData = new FormData();
-        formData.append("file", blob, "capture.png");
-
-        const apiUrl = `${baseUrl}/api/predict`;
-        const res = await fetch(apiUrl, {
-          method: "POST",
-          body: formData,
-          // include credentials for cookie-based auth (verifyAuth)
-          credentials: "include",
-          signal: controller.signal,
-        });
-
-        if (!res.ok) {
-          // try to parse JSON message if available
-          let errText = `Server error: ${res.status}`;
-          try {
-            const errJson = await res.json();
-            if (errJson?.detail) errText += ` - ${errJson.detail}`;
-          } catch {}
-          throw new Error(errText);
-        }
-
-        const payload = await res.json();
-
-        const predsObj = payload.predictions ?? payload;
-        const parsed = normalizePredsFromObj(predsObj);
-        let final: { label: string; prob: number }[] = [];
-
-        if (
-          parsed.length === 1 &&
-          parsed[0].label &&
-          (parsed[0].prob === 0 || parsed[0].prob === 1)
-        ) {
-          // maybe it's Unknown/Mixed or a single label with implied prob
-          final = parsed;
-        } else if (parsed.length > 0) {
-          final = parsed.sort((a, b) => b.prob - a.prob).slice(0, 5);
-        } else if (payload.predictions && typeof payload.predictions === "object") {
-          final = normalizePredsFromObj(payload.predictions);
-        } else {
-          final = [{ label: "Unknown/Mixed", prob: payload?.inference_time_s ?? 0 }];
-        }
-
-        setPredictions(final);
-        setMeta({
-          inference_time: payload.inference_time_s ?? null,
-          width: payload.width ?? null,
-          height: payload.height ?? null,
-        });
+        throw new Error(errText);
       }
+
+      const payload = await res.json();
+
+      // Keep your existing parsing logic (same as before)
+      const predsObj = payload.predictions ?? payload;
+      const parsed = normalizePredsFromObj(predsObj);
+      let final: { label: string; prob: number }[] = [];
+
+      if (
+        parsed.length === 1 &&
+        parsed[0].label &&
+        (parsed[0].prob === 0 || parsed[0].prob === 1)
+      ) {
+        final = parsed;
+      } else if (parsed.length > 0) {
+        final = parsed.sort((a, b) => b.prob - a.prob).slice(0, 5);
+      } else if (
+        payload.predictions &&
+        typeof payload.predictions === "object"
+      ) {
+        final = normalizePredsFromObj(payload.predictions);
+      } else {
+        final = [
+          { label: "Unknown/Mixed", prob: payload?.inference_time_s ?? 0 },
+        ];
+      }
+
+      setPredictions(final);
+      setMeta({
+        inference_time: payload.inference_time_s ?? payload.duration ?? null,
+        width: payload.width ?? null,
+        height: payload.height ?? null,
+      });
     } catch (err: any) {
       console.error("Upload failed", err);
       if (err.name === "AbortError") {
-        setGeneralError("Request timed out. Try a smaller image or check the backend.");
+        setGeneralError(
+          "Request timed out. Try a smaller image or check the backend.",
+        );
       } else {
         setGeneralError(
-          err?.message || "Failed to identify image. Is the backend running?"
+          err?.message || "Failed to identify image. Is the backend running?",
         );
       }
     } finally {
