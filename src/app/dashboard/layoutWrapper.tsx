@@ -14,7 +14,7 @@ export function ClientAuthWrapper({ children }: { children: ReactNode }) {
     }
   }, [user, router,loading]);
 
-  if (!user && !loading) return null;
+  // if (!user && !loading) return null;
 
   return <>{children}</>;
 }
