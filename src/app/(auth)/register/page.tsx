@@ -34,7 +34,7 @@ export default function RegisterPage() {
     setIsLoading(true);
     setStatus(null); 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/register` , {
+      const response = await fetch(`/api/auth/register` , {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

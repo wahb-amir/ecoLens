@@ -258,7 +258,7 @@ export default function DashboardPage() {
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      // POST the dataUrl to our Next.js proxy endpoint
+      // POST the dataUrl to Next.js proxy endpoint
       const res = await fetch("/api/predict", {
         method: "POST",
         headers: {
@@ -266,7 +266,7 @@ export default function DashboardPage() {
         },
         body: JSON.stringify({ dataUrl }),
         signal: controller.signal,
-        // credentials: "include", // uncomment if you need cookies forwarded to Next.js
+        credentials: "include", 
       });
 
       if (!res.ok) {
