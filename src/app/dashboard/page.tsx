@@ -25,9 +25,10 @@ import {
   Aperture,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
+import { useAuth } from "../providers/AuthProvider";
 export default function DashboardPage() {
   const { stats } = useEcoTracker();
+  const { refreshTokens, fetchWithAuth, user } = useAuth();
 
   // -- State --
   const [isUploading, setIsUploading] = useState(false);
@@ -203,8 +204,6 @@ export default function DashboardPage() {
     }
 
     if (Array.isArray(obj)) {
-      // array of strings or array of [label, prob] or array of objects
-      // try to interpret
       const arr = obj
         .map((it: any) => {
           if (typeof it === "string") return { label: it, prob: 1 };
@@ -246,45 +245,59 @@ export default function DashboardPage() {
   // API / PREDICTION LOGIC (auto-detect HF Space vs custom backend)
   // ---------------------------------------------------------
 
-  // Replace your current uploadForPrediction with this exact function
   const uploadForPrediction = async (dataUrl: string) => {
     setIsUploading(true);
     setGeneralError(null);
     setPredictions(null);
     setMeta(null);
 
+    // 1. Safety Check: Is the user even logged in?
+    if (!user) {
+      setGeneralError("Session expired. Please log in again.");
+      setIsUploading(false);
+      return;
+    }
+
     const timeoutMs = 30000;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      // POST the dataUrl to Next.js proxy endpoint
-      const res = await fetch("/api/predict", {
+      // 2. Just-In-Time Rotation:
+      // We call refreshTokens immediately before the API call.
+      // Because of your 'refreshMutex' in AuthProvider, this is safe.
+      const isTokenValid = await refreshTokens();
+
+      if (!isTokenValid) {
+        throw new Error("Could not re-authenticate. Please log in again.");
+      }
+
+      // 3. Use fetchWithAuth instead of standard fetch:
+      // This provides a second layer of defense (automatic retry on 401).
+      const res = await fetchWithAuth("/api/predict", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ dataUrl }),
         signal: controller.signal,
-        credentials: "include", 
       });
 
       if (!res.ok) {
-        // try to surface useful error message
         let errText = `Server error: ${res.status}`;
         try {
           const json = await res.json();
           if (json?.detail) errText += ` - ${json.detail}`;
           else if (json?.error) errText += ` - ${json.error}`;
         } catch {
-          // ignore parse error
+          /* ignore parse error */
         }
         throw new Error(errText);
       }
 
       const payload = await res.json();
 
-      // Keep your existing parsing logic (same as before)
+      // ... (Keep your existing parsing logic for 'final' predictions)
       const predsObj = payload.predictions ?? payload;
       const parsed = normalizePredsFromObj(predsObj);
       let final: { label: string; prob: number }[] = [];
@@ -297,11 +310,6 @@ export default function DashboardPage() {
         final = parsed;
       } else if (parsed.length > 0) {
         final = parsed.sort((a, b) => b.prob - a.prob).slice(0, 5);
-      } else if (
-        payload.predictions &&
-        typeof payload.predictions === "object"
-      ) {
-        final = normalizePredsFromObj(payload.predictions);
       } else {
         final = [
           { label: "Unknown/Mixed", prob: payload?.inference_time_s ?? 0 },
@@ -317,13 +325,9 @@ export default function DashboardPage() {
     } catch (err: any) {
       console.error("Upload failed", err);
       if (err.name === "AbortError") {
-        setGeneralError(
-          "Request timed out. Try a smaller image or check the backend.",
-        );
+        setGeneralError("Request timed out. Try a smaller image.");
       } else {
-        setGeneralError(
-          err?.message || "Failed to identify image. Is the backend running?",
-        );
+        setGeneralError(err?.message || "Failed to identify image.");
       }
     } finally {
       clearTimeout(timer);
