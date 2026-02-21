@@ -190,9 +190,7 @@ export function AuthProvider({
   // logout helper: backend should clear cookies on logout
   const logout = useCallback(async () => {
     try {
-      const logoutUrl = backendBase
-        ? `${backendBase}/api/auth/logout`
-        : "/api/auth/logout";
+      const logoutUrl = `/api/auth/logout`
       await fetch(logoutUrl, {
         method: "POST",
         credentials: "include",
@@ -207,7 +205,7 @@ export function AuthProvider({
 
  const syncUser = useCallback(async (): Promise<void> => {
   try {
-    const meUrl = backendBase ? `${backendBase}/api/user/me` : "/api/user/me";
+    const meUrl = "/api/user/me";
     const res = await fetch(meUrl, {
       method: "GET",
       credentials: "include",
