@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link"; // Added for navigation
-import { AuthLayout, StatusAlert } from "@/components/auth/auth-layout";
+import { AuthLayout } from "@/components/auth/auth-layout";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, ShieldCheck, ArrowLeft } from "lucide-react"; // Added ArrowLeft
 import { useAuth } from "@/app/providers/AuthProvider";
@@ -69,7 +69,7 @@ function OtpForm() {
     setStatus(null);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/verify`, {
+      const response = await fetch(`/api/auth/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ otp: codeToVerify }),
@@ -122,8 +122,6 @@ function OtpForm() {
 
   return (
     <form onSubmit={(e) => handleVerify(e)} className="space-y-8">
-      <StatusAlert status={status?.type || null} message={status?.msg || ""} />
-
       {/* The "Board" Container */}
       <div
         className="flex justify-between gap-2 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 shadow-inner"

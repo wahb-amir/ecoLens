@@ -29,13 +29,13 @@ export default function LoginPage() {
     const password = formData.get("password");
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/login`, {
+      const response = await fetch(`/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
         credentials: "include",
       });
-      await syncUser()
+      await syncUser();
       const data = await response.json();
 
       if (!response.ok) {
@@ -48,13 +48,16 @@ export default function LoginPage() {
       });
 
       setTimeout(() => {
-        if (data.requireMFA) {
-          router.push(`/verify-otp`);
+        console.log(data)
+        if (
+          data.reason === "pending_verification" ||
+          data.reason === "otp_sent"
+        ) {
+          router.push("/verify-otp");
         } else {
           router.push("/dashboard");
         }
       }, 800);
-
     } catch (error: any) {
       setStatus({
         type: "error",
@@ -137,7 +140,9 @@ export default function LoginPage() {
             <span className="w-full border-t border-slate-100" />
           </div>
           <div className="relative flex justify-center text-[10px] uppercase tracking-widest font-bold">
-            <span className="bg-white px-4 text-slate-400">Or continue with</span>
+            <span className="bg-white px-4 text-slate-400">
+              Or continue with
+            </span>
           </div>
         </div>
 
