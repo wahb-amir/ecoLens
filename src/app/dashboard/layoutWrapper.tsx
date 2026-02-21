@@ -10,11 +10,11 @@ export function ClientAuthWrapper({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user && !loading) {
-      // router.replace("/login")
+      router.replace("/login")
     }
   }, [user, router,loading]);
 
-  // if (!user && !loading) return null;
+  if (!user && !loading) return null;
 
   return <>{children}</>;
 }
