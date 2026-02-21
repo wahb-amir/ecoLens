@@ -67,8 +67,8 @@ export function AuthProvider({
     const p = (async () => {
       try {
         const url = backendBase
-          ? `${backendBase}/api/auth/me`
-          : "/api/auth/me";
+          ? `${backendBase}/api/user/me`
+          : "/api/user/me";
 
         const res = await fetch(url, {
           method: "POST",
