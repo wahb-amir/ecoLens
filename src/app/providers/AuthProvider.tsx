@@ -71,7 +71,7 @@ export function AuthProvider({
           : "/api/user/me";
 
         const res = await fetch(url, {
-          method: "POST",
+          method: "GET",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
         });
