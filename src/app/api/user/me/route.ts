@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAccessToken, rotateTokens } from "@/lib/token";
 
-const ACCESS_TOKEN_COOKIE = "accessToken";
-const REFRESH_TOKEN_COOKIE = "refreshToken";
+const ACCESS_TOKEN_COOKIE = "access_token";
+const REFRESH_TOKEN_COOKIE = "refresh_token";
 
 function cookieOptsSeconds(maxAgeSeconds: number) {
   const isProd = process.env.NODE_ENV === "production";
