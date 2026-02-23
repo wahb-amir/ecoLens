@@ -1,5 +1,4 @@
-import useSWR from 'swr';
-import { RankTrend } from '@/lib/leaderboard';
+import useSWR, { KeyedMutator } from 'swr';
 
 export interface LeaderboardEntry {
   id: string;
@@ -8,26 +7,35 @@ export interface LeaderboardEntry {
   avatar: string;
   ecoScore: number;
   totalScans: number;
+  isCurrentUser: boolean;
   streak: number;
-  trend: RankTrend;
+  trend: 'up' | 'down' | 'stable';
+}
+
+interface LeaderboardResponse {
+  success: boolean;
+  data: LeaderboardEntry[];
+  currentUser: LeaderboardEntry | null; // This allows the sticky footer to work
 }
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-export function useLeaderboard() {
-  const { data, error, isLoading, mutate } = useSWR<{ success: boolean; data: LeaderboardEntry[] }>(
-    '/api/leaderboard',
+export function useLeaderboard(userId?: string) {
+  // Pass the userId to the API so the backend can flag 'isCurrentUser'
+  const { data, error, isLoading, mutate } = useSWR<LeaderboardResponse>(
+    userId ? `/api/leaderboard?userId=${userId}` : '/api/leaderboard',
     fetcher,
     {
-      refreshInterval: 60000, // Auto-refresh every 60 seconds
-      revalidateOnFocus: true, // Refresh when user switches back to the tab
+      refreshInterval: 60000, 
+      revalidateOnFocus: true,
     }
   );
 
   return {
     leaderboard: data?.data || [],
+    currentUser: data?.currentUser || null, // Explicitly return this
     isLoading,
     isError: error,
-    mutate, // Expose mutate in case you want to force a refresh after a user scans something
+    mutate: mutate as KeyedMutator<LeaderboardResponse>,
   };
 }

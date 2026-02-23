@@ -16,13 +16,9 @@ import User from '@/Modal/user';
 export async function GET(req: NextRequest) {
   try {
     await connectToDb();
-
-    // 1. Get current User ID from query params or session 
-    // (In a real app, get this from your Auth middleware)
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('userId'); 
 
-    // 2. Run queries in parallel for maximum performance
     const [topUsers, currentUser] = await Promise.all([
       User.find({})
         .sort({ ecoScore: -1, totalScans: -1 })
@@ -32,28 +28,31 @@ export async function GET(req: NextRequest) {
       userId ? User.findById(userId).select('name ecoScore totalScans streak').lean() : null
     ]);
 
-    // 3. Format the Top 50
-    const top50Formatted = topUsers.map((user, index) => ({
-      id: user._id.toString(),
-      rank: index + 1,
-      name: user.name,
-      avatar: user.name.charAt(0).toUpperCase(),
-      ecoScore: user.ecoScore,
-      totalScans: user.totalScans,
-      streak: user.streak,
-      isCurrentUser: userId === user._id.toString(),
-      trend: user.streak >= 3 ? 'up' : user.streak === 0 ? 'down' : 'stable',
-    }));
+    const top50Formatted = topUsers.map((user, index) => {
+      const isMe = userId === user._id.toString();
+      return {
+        id: user._id.toString(),
+        rank: index + 1,
+        // We mask others, but if it's "Me", show the full name
+        name:  user.name,
+        avatar: user.name.charAt(0).toUpperCase(),
+        ecoScore: user.ecoScore,
+        totalScans: user.totalScans,
+        streak: user.streak,
+        isCurrentUser: isMe, // CRITICAL FLAG
+        trend: user.streak >= 3 ? 'up' : user.streak === 0 ? 'down' : 'stable',
+      };
+    });
 
     let userStats = null;
-
-    // 4. If user exists but isn't in Top 50, calculate their rank
     if (currentUser) {
-      const isNotInTop50 = !topUsers.some(u => u._id.toString() === userId);
-
-      if (isNotInTop50) {
-        // Count how many people have a higher score than the current user
-        // We use the same sort logic: higher ecoScore OR (same score AND more scans)
+      // Find if user is already in the top 50 array
+      const top50Entry = top50Formatted.find(u => u.id === userId);
+      
+      if (top50Entry) {
+        userStats = top50Entry;
+      } else {
+        // Calculate rank if outside top 50
         const rank = await User.countDocuments({
           $or: [
             { ecoScore: { $gt: currentUser.ecoScore } },
@@ -64,28 +63,19 @@ export async function GET(req: NextRequest) {
         userStats = {
           id: currentUser._id.toString(),
           rank,
-          name: currentUser.name, // We don't mask the user's own name for their own UI
+          name: currentUser.name,
           avatar: currentUser.name.charAt(0).toUpperCase(),
           ecoScore: currentUser.ecoScore,
           totalScans: currentUser.totalScans,
           streak: currentUser.streak,
           isCurrentUser: true,
-          trend: currentUser.streak >= 3 ? 'up' : currentUser.streak === 0 ? 'down' : 'stable',
+          trend: 'stable',
         };
-      } else {
-        // If they ARE in the top 50, find their formatted record
-        userStats = top50Formatted.find(u => u.id === userId);
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      data: top50Formatted,
-      currentUser: userStats // This allows the UI to show a "Your Rank" sticky bar
-    });
-
+    return NextResponse.json({ success: true, data: top50Formatted, currentUser: userStats });
   } catch (error) {
-    console.error('Leaderboard fetch error:', error);
-    return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ success: false }, { status: 500 });
   }
 }
