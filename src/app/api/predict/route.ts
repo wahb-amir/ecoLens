@@ -20,13 +20,13 @@ const mapLabelToCategory = (label: string): string => {
     return "organic";
   return "other";
 };
+
 const calculateStreak = (
   lastScanDate: Date | undefined,
   currentScanDate: Date,
 ): number | undefined => {
   if (!lastScanDate) return 1;
 
-  // Normalize to start of day (UTC) for accurate day-to-day comparison
   const last = new Date(lastScanDate);
   const current = new Date(currentScanDate);
 
@@ -36,9 +36,24 @@ const calculateStreak = (
   const diffInMs = current.getTime() - last.getTime();
   const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
 
-  if (diffInDays === 1) return undefined; // Consecutive: We'll use $inc: { streak: 1 }
-  if (diffInDays > 1) return 1; // Gap: Reset streak to 1
-  return 0; // Same Day: No change (returning 0 means don't increment)
+  if (diffInDays === 1) return undefined; // consecutive -> increment
+  if (diffInDays > 1) return 1; // gap -> reset to 1
+  return 0; // same day -> no change
+};
+
+// NEW: treat unknown/mixed as no-match
+const isNoMatchLabel = (label?: string | null): boolean => {
+  if (!label) return true;
+  const l = label.toString().trim().toLowerCase();
+  if (!l) return true;
+  // handle exact and slash variants and simple contains
+  if (l === "unknown" || l === "mixed") return true;
+  if (l.includes("unknown/mixed") || l.includes("mixed/unknown")) return true;
+  // also protect simple contain case (e.g. "unknown - something")
+  if (/\b(unknown|mixed)\b/.test(l) && !/\b(plastic|paper|glass|metal|food|organic|cardboard|aluminum|can)\b/.test(l)) {
+    return true;
+  }
+  return false;
 };
 
 export async function POST(req: Request) {
@@ -60,7 +75,7 @@ export async function POST(req: Request) {
     if (!dataUrl)
       return NextResponse.json({ error: "Missing dataUrl" }, { status: 400 });
 
-    // 2. AI PREDICTION (Your existing proxy logic)
+    // 2. AI PREDICTION (proxy)
     const target = "https://wahb-amir-ecolens.hf.space/run/predict";
     const proxied = await fetch(target, {
       method: "POST",
@@ -70,8 +85,8 @@ export async function POST(req: Request) {
 
     const payload = await proxied.json();
 
-    // Normalize extraction logic (Staff level: assume raw output needs cleaning)
-    let predictions = [];
+    // Normalize extraction logic
+    let predictions: { label: string; prob: number }[] = [];
     if (payload?.data?.[0]?.confidences) {
       predictions = payload.data[0].confidences.map((c: any) => ({
         label: String(c.label),
@@ -87,6 +102,18 @@ export async function POST(req: Request) {
     }
 
     const topMatch = predictions[0];
+
+    // --- NEW: If the model returns Unknown / Mixed, DO NOT update DB or create a scan.
+    if (isNoMatchLabel(topMatch.label)) {
+      // Return the predictions and a noMatch flag so frontend can present "No match found"
+      return NextResponse.json({
+        predictions,
+        noMatch: true,
+        message: "No confident match",
+      });
+    }
+
+    // proceed to map and update DB (only for valid matches)
     const category = mapLabelToCategory(topMatch.label);
     const pointsEarned = Math.round(topMatch.prob * 20); // Scale points by confidence
 
@@ -120,7 +147,7 @@ export async function POST(req: Request) {
       { new: true, upsert: true },
     );
 
-    // 4. ACHIEVEMENT ENGINE
+    // ACHIEVEMENT ENGINE
     const newlyUnlocked: string[] = [];
     const existingAchievementIds = new Set(
       updatedUser.achievements.map((a: any) => a.achievementId),
@@ -145,7 +172,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // If new achievements found, push them to the user document
     if (newlyUnlocked.length > 0) {
       await User.updateOne(
         { _id: updatedUser._id },
@@ -162,7 +188,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 5. PERSIST SCAN HISTORY
+    // Persist scan history
     const scanLog = await Scan.create({
       userId: updatedUser._id,
       label: topMatch.label,
@@ -174,7 +200,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // 6. RETURN ENRICHED RESPONSE
+    // Return enriched response
     return NextResponse.json({
       predictions,
       scanId: scanLog._id,

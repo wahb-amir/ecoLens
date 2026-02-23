@@ -1,169 +1,165 @@
-"use client";
+'use client';
 
-import { motion } from "framer-motion";
+import React from "react";
+import { motion, Variants } from "framer-motion";
+import { Leaf, Award, BarChart,Zap,ShieldCheck,Trophy,Crown,Hammer, LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Leaf, Award, BarChart } from "lucide-react";
-import { achievements } from "@/lib/achievements";
-import { AnimatedCounter } from "./AnimatedCounter";
-import { motionProps } from "./SectionShared";
+import { cn } from "@/lib/utils";
+
+// --- Types & Interfaces ---
+interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: LucideIcon;
+}
 
 interface StatItem {
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  icon: LucideIcon;
   value: number;
   label: string;
   suffix?: string;
-  // explicit classes so Tailwind picks them up
-  iconOuter: string;
-  cardBase: string;
-  borderBase: string;
-  headingColor?: string;
+  colorClass: string;
 }
+
+// --- Mock Data (Replace with your actual import) ---
+const achievements: Achievement[] = [
+  { id: 'ACH_first-step', name: 'First Step', description: 'Classify your first item.', icon: Zap },
+  { id: 'ACH_waste-warrior', name: 'Waste Warrior', description: 'Classify 50 items.', icon: ShieldCheck },
+  { id: 'ACH_score-pro', name: 'Score Pro', description: 'Reach an Eco Score of 1000.', icon: Trophy },
+  { id: 'ACH_planet-protector', name: 'Planet Protector', description: 'Classify 100 items.', icon: Crown },
+  { id: 'ACH_metal-master', name: 'Metal Master', description: 'Classify 10 metal items.', icon: Hammer },
+];
+
+// --- Animation Variants ---
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1, delayChildren: 0.2 },
+  },
+};
+
+const itemVariants: Variants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: { y: 0, opacity: 1, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
+};
+
+// --- Sub-Components ---
+
+const StatCard = ({ stat, index }: { stat: StatItem; index: number }) => {
+  const Icon = stat.icon;
+  return (
+    <motion.div variants={itemVariants} className="h-full">
+      <Card className={cn(
+        "relative h-full overflow-hidden border-none bg-white/60 backdrop-blur-xl p-8 transition-all duration-500 group",
+        "ring-1 ring-slate-200/60 hover:ring-emerald-500/30 hover:shadow-[0_20px_50px_rgba(0,0,0,0.05)]"
+      )}>
+        {/* Abstract Background Glow */}
+        <div className={cn(
+          "absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-10 blur-3xl transition-opacity group-hover:opacity-20",
+          stat.colorClass.replace('text', 'bg')
+        )} />
+
+        <div className="relative z-10 flex flex-col items-center">
+          <div className={cn(
+            "mb-6 p-4 rounded-2xl transition-all duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm",
+            "bg-white ring-1 ring-slate-100",
+            stat.colorClass
+          )}>
+            <Icon className="w-8 h-8" />
+          </div>
+
+          <div className="flex items-baseline gap-1">
+            <span className="text-5xl font-extrabold tracking-tight text-slate-900">
+              {/* Replace with your <AnimatedCounter /> component */}
+              {stat.value.toLocaleString()}
+            </span>
+            {stat.suffix && (
+              <span className="text-2xl font-bold text-slate-400">{stat.suffix}</span>
+            )}
+          </div>
+
+          <p className="mt-3 text-sm font-semibold uppercase tracking-[0.15em] text-slate-500">
+            {stat.label}
+          </p>
+        </div>
+      </Card>
+    </motion.div>
+  );
+};
 
 export default function AchievementsSection() {
   const stats: StatItem[] = [
-    {
-      icon: Leaf,
-      value: 12845,
-      label: "Total Items Recycled",
-      // emerald — noticeable even before hover
-      iconOuter:
-        "p-4 rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100",
-      cardBase:
-        "bg-gradient-to-br from-emerald-50 to-white transform -translate-y-1",
-      borderBase: "border-emerald-100",
-      headingColor: "text-emerald-800",
-    },
-    {
-      icon: Award,
-      value: 432,
-      label: "Active Eco-Warriors",
-      // sky blue — slightly different shape and tint
-      iconOuter: "p-4 rounded-full bg-sky-50 text-sky-700 ring-1 ring-sky-100",
-      cardBase:
-        "bg-gradient-to-br from-sky-50 to-white transform translate-y-0.5",
-      borderBase: "border-sky-100",
-      headingColor: "text-sky-800",
-    },
-    {
-      icon: BarChart,
-      value: 89,
-      label: "Classification Accuracy",
-      suffix: "%",
-      // indigo — tech/data vibe
-      iconOuter:
-        "p-4 rounded-full bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100",
-      cardBase:
-        "bg-gradient-to-br from-indigo-50 to-white transform translate-y-1",
-      borderBase: "border-indigo-100",
-      headingColor: "text-indigo-800",
-    },
-  ];
-
-  const badgePalettes = [
-    {
-      outer: "p-5 rounded-full shadow-inner bg-emerald-50 text-emerald-700",
-      title: "text-emerald-800",
-    },
-    {
-      outer: "p-5 rounded-full shadow-inner bg-sky-50 text-sky-700",
-      title: "text-sky-800",
-    },
-    {
-      outer: "p-5 rounded-full shadow-inner bg-indigo-50 text-indigo-700",
-      title: "text-indigo-800",
-    },
-    {
-      outer: "p-5 rounded-full shadow-inner bg-rose-50 text-rose-700",
-      title: "text-rose-800",
-    },
-    {
-      outer: "p-5 rounded-full shadow-inner bg-amber-50 text-amber-700",
-      title: "text-amber-800",
-    },
+    { icon: Leaf, value: 12845, label: "Total Recycled", colorClass: "text-emerald-600" },
+    { icon: Award, value: 432, label: "Eco-Warriors", colorClass: "text-sky-600" },
+    { icon: BarChart, value: 89, suffix: "%", label: "AI Accuracy", colorClass: "text-indigo-600" },
   ];
 
   return (
     <motion.section
-      {...motionProps}
-      className="w-full max-w-6xl py-20 px-4 md:py-28 text-center mx-auto overflow-x-hidden"
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: "-100px" }}
+      variants={containerVariants}
+      className="relative w-full max-w-7xl py-24 px-6 md:py-40 mx-auto overflow-hidden"
     >
-      <h2 className="text-3xl md:text-4xl font-bold">
-        Your Impact & Achievements
-      </h2>
-      <p className="mt-4 max-w-2xl mx-auto text-lg text-muted-foreground">
-        Every action matters. See our collective effort and unlock badges for
-        your milestones.
-      </p>
-
-      <div className="mt-16 grid gap-8 sm:grid-cols-3">
-        {stats.map((stat, idx) => {
-          const Icon = stat.icon;
-          return (
-            <Card
-              key={idx}
-              className={`flex flex-col items-center justify-center p-8 shadow-md overflow-hidden border-2 transition-all duration-300 group ${stat.borderBase} ${stat.cardBase}`}
-            >
-              <div
-                className={`mb-4 transition-all duration-300 ${stat.iconOuter}`}
-              >
-                <Icon className="w-12 h-12" />
-              </div>
-
-              <div className="flex items-baseline gap-2">
-                <AnimatedCounter
-                  to={stat.value}
-                  className="text-5xl font-bold"
-                />
-                {stat.suffix && (
-                  <span className="text-3xl font-bold align-baseline">
-                    {stat.suffix}
-                  </span>
-                )}
-              </div>
-
-              <p
-                className={`mt-2 font-semibold transition-colors group-hover:text-foreground ${stat.headingColor || "text-slate-700"}`}
-              >
-                {stat.label}
-              </p>
-            </Card>
-          );
-        })}
+      {/* Background Polish */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full -z-10 pointer-events-none">
+        <div className="absolute top-24 left-1/4 w-96 h-96 bg-emerald-50/50 blur-[120px] rounded-full" />
+        <div className="absolute bottom-24 right-1/4 w-96 h-96 bg-blue-50/50 blur-[120px] rounded-full" />
       </div>
 
-      <div className="mt-20">
-        <h3 className="text-2xl font-bold mb-8">Unlock Badges</h3>
-        <div className="flex flex-wrap justify-center gap-8">
-          {achievements.slice(0, 5).map((ach, i) => {
-            const Icon = ach.icon as React.ComponentType<
-              React.SVGProps<SVGSVGElement>
-            >;
-            const palette = badgePalettes[i % badgePalettes.length];
-            return (
+      <div className="relative z-10 text-center">
+        {/* Header Section */}
+        <motion.div variants={itemVariants} className="mb-20">
+          <span className="text-emerald-600 font-mono text-[11px] font-bold uppercase tracking-[0.3em] mb-4 block">
+            Collective Metrics
+          </span>
+          <h2 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tight mb-6">
+            Your Impact & <span className="text-emerald-600 italic">Achievements</span>
+          </h2>
+          <p className="max-w-2xl mx-auto text-lg text-slate-500 font-light leading-relaxed">
+            Real-time data synchronization across our global network of sustainable contributors.
+          </p>
+        </motion.div>
+
+        {/* Stats Grid */}
+        <div className="grid gap-6 sm:grid-cols-3 mb-32">
+          {stats.map((stat, idx) => (
+            <StatCard key={idx} stat={stat} index={idx} />
+          ))}
+        </div>
+
+        {/* Badges Section */}
+        <motion.div variants={itemVariants} className="pt-20 border-t border-slate-100">
+          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-[0.2em] mb-12">
+            Protocol Milestones
+          </h3>
+          <div className="flex flex-wrap justify-center gap-12 md:gap-20">
+            {achievements.map((ach) => (
               <motion.div
                 key={ach.id}
-                className="flex flex-col items-center text-center w-28 overflow-hidden group"
-                whileHover={{ scale: 1.08, rotate: 3 }}
+                whileHover={{ y: -5 }}
+                className="flex flex-col items-center group cursor-help"
               >
-                {/* Each badge has a different default tint before hover */}
-                <div
-                  className={`${palette.outer} transition-all duration-300`}
-                  aria-hidden
-                >
-                  <Icon className="w-10 h-10" />
+                <div className="relative">
+                  {/* Badge "Plate" */}
+                  <div className="p-6 rounded-full bg-gradient-to-b from-white to-slate-50 ring-1 ring-slate-200 shadow-sm transition-all duration-300 group-hover:shadow-xl group-hover:ring-emerald-200">
+                    <ach.icon className="w-8 h-8 text-slate-400 group-hover:text-emerald-600 transition-colors duration-300" />
+                  </div>
+                  {/* Active Indicator */}
+                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white scale-0 group-hover:scale-100 transition-transform duration-300" />
                 </div>
-                <p
-                  className={`mt-3 font-bold text-md transition-colors ${palette.title}`}
-                >
-                  {ach.name}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
+                
+                <p className="mt-4 font-bold text-slate-800 text-sm tracking-tight">{ach.name}</p>
+                <p className="text-[11px] text-slate-400 font-medium uppercase tracking-tighter mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   {ach.description}
                 </p>
               </motion.div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        </motion.div>
       </div>
     </motion.section>
   );
