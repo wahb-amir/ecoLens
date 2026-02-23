@@ -134,27 +134,6 @@ export default function LoginPage() {
           )}
         </Button>
 
-        {/* ... divider and Google button stay the same ... */}
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-slate-100" />
-          </div>
-          <div className="relative flex justify-center text-[10px] uppercase tracking-widest font-bold">
-            <span className="bg-white px-4 text-slate-400">
-              Or continue with
-            </span>
-          </div>
-        </div>
-
-        <Button
-          variant="outline"
-          type="button"
-          className="w-full h-11 border-slate-200 hover:bg-slate-50 transition-colors"
-          disabled={isLoading}
-        >
-          {/* Google SVG code here */}
-          Google
-        </Button>
 
         <p className="text-center text-sm text-slate-500">
           Don't have an account?{" "}
