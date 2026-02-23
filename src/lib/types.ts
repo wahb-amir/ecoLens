@@ -1,5 +1,4 @@
-import type { ForwardRefExoticComponent, RefAttributes, SVGProps } from "react";
-
+import type { LucideIcon } from "lucide-react";
 
 export interface LeaderboardUser {
   rank: number;
@@ -8,16 +7,35 @@ export interface LeaderboardUser {
   avatar: string;
 }
 
+/**
+ * Staff Engineer Tip: Define a strict Category type to prevent 
+ * "stringly-typed" errors across the codebase.
+ */
+export type WasteCategory = 'plastic' | 'paper' | 'glass' | 'metal' | 'organic' | 'other';
+
 export interface EcoStats {
   totalScans: number;
-  scansByType: Record<string, number>;
+  ecoScore: number;
+  streak: number;
+  categoryStats: {
+    plastic: number;
+    paper: number;
+    glass: number;
+    metal: number;
+    organic: number;
+    other: number;
+  };
+  unlockedAchievements: string[]; 
 }
 
 export interface Achievement {
   id: string;
   name: string;
   description: string;
-  icon: ForwardRefExoticComponent<SVGProps<SVGSVGElement> & RefAttributes<SVGSVGElement>>;
+  // Simplified type for Lucide icons
+  icon: LucideIcon;
   isUnlocked: (stats: EcoStats) => boolean;
-  goal?: number; // optional property
+  type: 'totalScans' | 'ecoScore' | 'category';
+  threshold: number;
+  category?: WasteCategory;
 }

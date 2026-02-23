@@ -1,128 +1,77 @@
-import type { Achievement, EcoStats } from '@/lib/types';
-import { Award, Leaf, Sprout, Star, ShieldCheck, Trophy, Gem, Crown, Recycle, Package, GlassWater } from 'lucide-react';
+// lib/achievements.ts
+import { ACHIEVEMENT_RULES, AchievementRule } from './achievements/config';
+import { EcoStats } from './types'; // Ensure this matches your EcoStats interface
+import { 
+  Trophy, 
+  Flame, 
+  Leaf, 
+  Zap, 
+  ShieldCheck, 
+  Target, 
+  Award,
+  Star,
+  ZapOff,
+  Box,
+  FileText,
+  GlassWater,
+  Coins
+} from 'lucide-react';
 
-export const achievements: Achievement[] = [
-  {
-    id: 'first-scan',
-    name: 'First Step',
-    description: 'Classify your first item.',
-    icon: Sprout,
-    goal: 1,
-    isUnlocked: (stats: EcoStats) => stats.totalScans >= 1,
-  },
-  {
-    id: 'recycling-rookie',
-    name: 'Recycling Rookie',
-    description: 'Classify 10 items.',
-    icon: Star,
-    goal: 10,
-    isUnlocked: (stats: EcoStats) => stats.totalScans >= 10,
-  },
-  {
-    id: 'eco-enthusiast',
-    name: 'Eco-Enthusiast',
-    description: 'Classify 25 items.',
-    icon: Leaf,
-    goal: 25,
-    isUnlocked: (stats: EcoStats) => stats.totalScans >= 25,
-  },
-  {
-    id: 'waste-warrior',
-    name: 'Waste Warrior',
-    description: 'Classify 50 items.',
-    icon: Award,
-    goal: 50,
-    isUnlocked: (stats: EcoStats) => stats.totalScans >= 50,
-  },
-  {
-    id: 'planet-protector',
-    name: 'Planet Protector',
-    description: 'Classify 100 items.',
-    icon: ShieldCheck,
-    goal: 100,
-    isUnlocked: (stats: EcoStats) => stats.totalScans >= 100,
-  },
-  {
-    id: 'recycling-champion',
-    name: 'Recycling Champion',
-    description: 'Classify 250 items.',
-    icon: Trophy,
-    goal: 250,
-    isUnlocked: (stats: EcoStats) => stats.totalScans >= 250,
-  },
-  {
-    id: 'score-starter',
-    name: 'Score Starter',
-    description: 'Reach an Eco Score of 250.',
-    icon: Gem,
-    goal: 250,
-    isUnlocked: (stats: EcoStats) => stats.ecoScore >= 250,
-  },
-  {
-    id: 'score-pro',
-    name: 'Score Pro',
-    description: 'Reach an Eco Score of 1000.',
-    icon: Crown,
-    goal: 1000,
-    isUnlocked: (stats: EcoStats) => stats.ecoScore >= 1000,
-  },
-  {
-    id: 'plastic-pioneer',
-    name: 'Plastic Pioneer',
-    description: 'Classify 10 plastic items.',
-    icon: Recycle,
-    goal: 10,
-    isUnlocked: (stats: EcoStats) => (stats.scansByType['plastic'] || 0) >= 10,
-  },
-  {
-    id: 'paper-pro',
-    name: 'Paper Pro',
-    description: 'Classify 10 paper items.',
-    icon: Package,
-    goal: 10,
-    isUnlocked: (stats: EcoStats) => (stats.scansByType['paper'] || 0) >= 10,
-  },
-   {
-    id: 'glass-guru',
-    name: 'Glass Guru',
-    description: 'Classify 10 glass items.',
-    icon: GlassWater,
-    goal: 10,
-    isUnlocked: (stats: EcoStats) => (stats.scansByType['glass'] || 0) >= 10,
-  },
-  {
-    id: 'metal-master',
-    name: 'Metal Master',
-    description: 'Classify 10 metal items.',
-    icon: Award, // Re-using icon, can be changed
-    goal: 10,
-    isUnlocked: (stats: EcoStats) => (stats.scansByType['metal'] || 0) >= 10,
-  },
-];
+/**
+ * Maps IDs to Lucide Icons for a unified look.
+ * Staff Engineering tip: Keeping icons in a map prevents 
+ * large switch statements in your JSX.
+ */
+const ICON_MAP: Record<string, any> = {
+  'ACH_first-step': Zap,
+  'ACH_recycling-rookie': Leaf,
+  'ACH_eco-enthusiast': Flame,
+  'ACH_waste-warrior': Target,
+  'ACH_planet-protector': ShieldCheck,
+  'ACH_recycling-champion': Trophy,
+  'ACH_score-starter': Star,
+  'ACH_score-pro': Award,
+  'ACH_plastic-pioneer': Box,
+  'ACH_paper-pro': FileText,
+  'ACH_glass-guru': GlassWater,
+  'ACH_metal-master': Coins,
+};
 
-
-export function getAchievementProgress(achievement: Achievement, stats: EcoStats) {
-    if (achievement.isUnlocked(stats)) return null;
-
-    let current = 0;
-    const target = achievement.goal;
-
-    if (achievement.id.startsWith('score-')) {
-        current = stats.ecoScore;
-    } else if (achievement.id.includes('-')) {
-        const wasteType = achievement.id.split('-')[0];
-        if (Object.keys(stats.scansByType).includes(wasteType)) {
-             current = stats.scansByType[wasteType] || 0;
-        } else {
-             current = stats.totalScans;
-        }
+/**
+ * The unified Achievement object used by the UI
+ */
+export const achievements = ACHIEVEMENT_RULES.map((rule) => ({
+  ...rule,
+  icon: ICON_MAP[rule.id] || Award,
+  // Helper to check if a specific achievement is unlocked based on user stats
+  isUnlocked: (stats: EcoStats) => {
+    if (rule.type === 'totalScans') return stats.totalScans >= rule.threshold;
+    if (rule.type === 'ecoScore') return stats.ecoScore >= rule.threshold;
+    if (rule.type === 'category' && rule.category) {
+      return (stats.categoryStats?.[rule.category] || 0) >= rule.threshold;
     }
+    return false;
+  },
+}));
 
-    if (current > target) current = target;
-    
-    return {
-        current,
-        target,
-        percentage: (current / target) * 100,
-    };
+/**
+ * Calculates current progress percentage and raw numbers
+ * Professional UI depends on accurate math here.
+ */
+export function getAchievementProgress(achievement: typeof achievements[0], stats: EcoStats) {
+  let current = 0;
+
+  if (achievement.type === 'totalScans') {
+    current = stats.totalScans;
+  } else if (achievement.type === 'ecoScore') {
+    current = stats.ecoScore;
+  } else if (achievement.type === 'category' && achievement.category) {
+    current = stats.categoryStats?.[achievement.category] || 0;
+  }
+
+  return {
+    current,
+    target: achievement.threshold,
+    percentage: Math.min((current / achievement.threshold) * 100, 100),
+  };
 }

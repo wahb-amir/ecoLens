@@ -1,10 +1,8 @@
 'use client';
 
 import { Achievements } from '@/components/dashboard/Achievements';
-import { useEcoTracker } from '@/hooks/use-eco-tracker';
-
+import { useUserStats } from '@/lib/use-user-stats';
 export default function AchievementsPage() {
-    const { stats } = useEcoTracker();
-    
+    const { stats } = useUserStats();
     return <Achievements stats={stats} />
 }
