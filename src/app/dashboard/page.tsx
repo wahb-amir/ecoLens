@@ -19,6 +19,7 @@ import {
   AlertCircle,
   RotateCcw,
   ImagePlus,
+  Star
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "../providers/AuthProvider";
@@ -230,7 +231,7 @@ export default function DashboardPage() {
     if (!stats) {
       return [
         { icon: Leaf, label: "Waste Diverted", val: `0.0 kg`, bg: "bg-emerald-600" },
-        { icon: Trophy, label: "Global Rank", val: "—", bg: "bg-indigo-600" },
+        { icon: Star, label: "Eco Score", val: "0", bg: "bg-violet-600" },
         { icon: Flame, label: "Active Streak", val: "—", bg: "bg-orange-500" },
       ];
     }
@@ -243,11 +244,11 @@ export default function DashboardPage() {
         bg: "bg-emerald-600",
       },
       {
-        icon: Trophy,
-        label: "Global Rank",
-        val: "Top 15%",
-        bg: "bg-indigo-600",
-      },
+      icon: Star, 
+      label: "Eco Score",
+      val: stats.ecoScore?.toLocaleString() ?? "0", // Uses your backend ecoScore
+      bg: "bg-violet-600",
+    },
       {
         icon: Flame,
         label: "Active Streak",
