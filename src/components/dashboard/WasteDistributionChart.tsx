@@ -12,11 +12,10 @@ interface WasteDistributionChartProps {
 }
 
 export function WasteDistributionChart({ stats }: WasteDistributionChartProps) {
-  // SAFE: default to empty object when scansByType is missing
-  const scansByType = stats?.scansByType ?? {};
+  const categoryStats = stats?.categoryStats ?? {};
 
-  // Convert entries to numbers, filter out falsy / zero entries and sort for nicer visuals
-  const data = Object.entries(scansByType)
+  // Convert entries to chart data
+  const data = Object.entries(categoryStats)
     .map(([name, value], index) => {
       const count = typeof value === "number" ? value : Number(value ?? 0);
       return {
@@ -25,7 +24,7 @@ export function WasteDistributionChart({ stats }: WasteDistributionChartProps) {
         fill: PALETTE[index % PALETTE.length],
       };
     })
-    .filter((d) => d.count > 0) // optional: hide zero-count types
+    .filter((d) => d.count > 0) 
     .sort((a, b) => b.count - a.count);
 
   if (data.length === 0) {

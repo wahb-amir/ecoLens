@@ -26,7 +26,6 @@ import { motion, AnimatePresence } from "framer-motion";
 interface AchievementsProps {
   stats?: EcoStats | null;
 }
-
 /**
  * ACHIEVEMENT CARD COMPONENT
  * Extracted for performance and cleaner reconciliation.
@@ -40,6 +39,7 @@ const AchievementCard = ({
   stats?: EcoStats | null;
   index: number;
 }) => {
+  
   // Determine unlocked status safely:
   const unlocked = useMemo(() => {
     // First, prefer explicit unlockedAchievements list on stats (fast)

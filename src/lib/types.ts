@@ -17,8 +17,15 @@ export interface EcoStats {
   totalScans: number;
   ecoScore: number;
   streak: number;
-  // Renamed for clarity and to match the MongoDB schema we created
-  categoryStats: Record<WasteCategory, number>;
+  categoryStats: {
+    plastic: number;
+    paper: number;
+    glass: number;
+    metal: number;
+    organic: number;
+    other: number;
+  };
+  unlockedAchievements: string[]; 
 }
 
 export interface Achievement {
