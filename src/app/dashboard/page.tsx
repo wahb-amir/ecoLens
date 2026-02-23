@@ -43,7 +43,6 @@ const ALLOWED_MIME_TYPES = [
   "image/jpeg",
   "image/jpg",
   "image/webp",
-  "image/avif",
 ] as const;
 
 // --- Types ---
@@ -190,9 +189,6 @@ export default function UpscaledDashboard() {
 
         try {
           // try to play
-          // user initiated click should allow play, but fallback tries muted first (we already muted)
-          // await ensures we know whether play succeeded
-          // If play resolves, show camera active.
           await videoRef.current.play();
           // Small settle delay on some devices
           await new Promise((r) => setTimeout(r, 50));
@@ -215,7 +211,6 @@ export default function UpscaledDashboard() {
         }
       } else {
         // If video not mounted (shouldn't happen because it's always rendered), keep stream in ref.
-        // We'll still mark camera active so UI can try again.
         setIsCameraActive(true);
       }
     } catch (attachErr) {
@@ -228,6 +223,37 @@ export default function UpscaledDashboard() {
     const newMode: FacingMode =
       facingMode === "environment" ? "user" : "environment";
     initCamera(newMode);
+  };
+
+  const handleUpload = async (dataUrl: string) => {
+    setIsUploading(true);
+    setError(null);
+    try {
+      const res = await fetchWithAuth("/api/predict", {
+        method: "POST",
+        body: JSON.stringify({ dataUrl }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message || "Failed to process image.");
+
+      // If backend says it's a no-match (Unknown/Mixed), do NOT update user state or create scan modal.
+      if (data?.noMatch) {
+        setPredictions(null);
+        setError("No confident match — try a different angle or clearer photo.");
+        return;
+      }
+
+      // Normal success path
+      setPredictions(data.predictions ?? null);
+      // Only refresh stats when we actually created a scan / returned valid match
+      await refreshStats();
+    } catch (err: any) {
+      setError(err.message || "AI Inference failed. Check connectivity.");
+      setPredictions(null);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const captureImage = () => {
@@ -263,14 +289,19 @@ export default function UpscaledDashboard() {
     }
 
     const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+    // show preview immediately (so user sees the captured image)
     setPreview(dataUrl);
 
-    // We stop the camera after capturing to save resources — keep behavior
-    stopCamera();
+    // Give the DOM a short moment to render preview before stopping stream to avoid flicker
+    // (some mobile browsers will show a black frame if srcObject is detached immediately)
+    setTimeout(() => {
+      stopCamera();
+    }, 180);
 
+    // small flash duration
     setTimeout(() => setIsFlashing(false), 150);
 
-    // Send to backend
+    // Send to backend (fire-and-forget here, errors handled inside)
     void handleUpload(dataUrl);
   };
 
@@ -284,7 +315,7 @@ export default function UpscaledDashboard() {
       )
     ) {
       setError(
-        "Invalid file type. Please upload a PNG, JPG, JPEG, WEBP, or AVIF image.",
+        "Invalid file type. Please upload a PNG, JPG, JPEG or WEBP image.",
       );
       e.target.value = "";
       return;
@@ -300,39 +331,6 @@ export default function UpscaledDashboard() {
     e.target.value = "";
   };
 
-  const handleUpload = async (dataUrl: string) => {
-    setIsUploading(true);
-    setError(null);
-    try {
-      const res = await fetchWithAuth("/api/predict", {
-        method: "POST",
-        body: JSON.stringify({ dataUrl }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.message || "Failed to process image.");
-
-      // If backend says it's a no-match (Unknown/Mixed), do NOT update user state or create scan modal.
-      if (data?.noMatch) {
-       
-        setPredictions(null); 
-        setError(
-          "No confident match — try a different angle or clearer photo.",
-        );
-        return;
-      }
-
-      // Normal success path
-      setPredictions(data.predictions ?? null);
-      // Only refresh stats when we actually created a scan / returned valid match
-      await refreshStats();
-    } catch (err: any) {
-      setError(err.message || "AI Inference failed. Check connectivity.");
-      setPredictions(null);
-    } finally {
-      setIsUploading(false);
-    }
-  };
   const resetScanner = () => {
     setPreview(null);
     setPredictions(null);
@@ -370,9 +368,7 @@ export default function UpscaledDashboard() {
               <p className="text-sm font-semibold">
                 {user?.email ?? "Contributor"}
               </p>
-              <p className="text-xs text-emerald-600 font-medium">
-                System Nominal
-              </p>
+              <p className="text-xs text-emerald-600 font-medium">System Nominal</p>
             </div>
             <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden">
               <img
@@ -391,15 +387,16 @@ export default function UpscaledDashboard() {
           <Card className="relative overflow-hidden border border-slate-200/60 shadow-[0_8px_30px_rgba(0,0,0,0.04)] bg-white rounded-[2rem]">
             <div className="aspect-[4/5] relative bg-slate-50 overflow-hidden">
               {/* Video is always mounted and visible while attempting to start.
-                  We no longer hide the element while trying to play, which avoids a blank/black hole. */}
+                  We keep it in the DOM, give explicit z-index, and conditionally darken the overlay
+                  only when we're showing a captured preview (so live camera won't be hidden). */}
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
-                // muted attribute keeps autoplay behavior consistent
                 muted
+                // z-index low so overlays/controls can appear above
                 className={cn(
-                  "absolute inset-0 w-full h-full object-cover transition-transform duration-300",
+                  "absolute inset-0 w-full h-full object-cover transition-transform duration-300 z-0",
                   facingMode === "user" ? "-scale-x-100" : "",
                 )}
               />
@@ -409,7 +406,7 @@ export default function UpscaledDashboard() {
                 {!isCameraActive && !preview && (
                   <motion.div
                     {...FADE}
-                    className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center"
+                    className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center z-10"
                   >
                     <div
                       className="mb-8 relative group cursor-pointer"
@@ -421,12 +418,9 @@ export default function UpscaledDashboard() {
                       </div>
                     </div>
 
-                    <h2 className="text-xl font-bold text-slate-800 mb-2">
-                      Scan an Item
-                    </h2>
+                    <h2 className="text-xl font-bold text-slate-800 mb-2">Scan an Item</h2>
                     <p className="text-slate-500 text-sm mb-8 max-w-[240px]">
-                      Use your lens or upload an image to identify recyclable
-                      materials.
+                      Use your lens or upload an image to identify recyclable materials.
                     </p>
 
                     <div className="w-full space-y-3 px-4">
@@ -442,14 +436,13 @@ export default function UpscaledDashboard() {
                         onClick={() => fileInputRef.current?.click()}
                         className="w-full rounded-xl py-6 border-slate-200 text-slate-600 hover:bg-slate-50"
                       >
-                        <UploadCloud className="mr-2 h-4 w-4 text-slate-400" />{" "}
-                        Upload Image
+                        <UploadCloud className="mr-2 h-4 w-4 text-slate-400" /> Upload Image
                       </Button>
 
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/png, image/jpeg, image/jpg, image/webp, image/avif"
+                        accept="image/png, image/jpeg, image/jpg, image/webp"
                         className="hidden"
                         onChange={handleFileUpload}
                       />
@@ -459,12 +452,20 @@ export default function UpscaledDashboard() {
 
                 {/* Media Active (live OR preview) */}
                 {(isCameraActive || preview) && (
-                  <motion.div {...FADE} className="absolute inset-0 bg-black">
+                  // NOTE: conditional background — only dark when showing captured preview AND camera not active.
+                  <motion.div
+                    {...FADE}
+                    className={cn(
+                      "absolute inset-0",
+                      // when showing preview (camera off), darken the background to emphasize preview
+                      preview && !isCameraActive ? "bg-black z-10" : "bg-transparent z-10",
+                    )}
+                  >
                     {/* show captured preview only when camera is NOT active */}
                     {preview && !isCameraActive && (
                       <img
                         src={preview}
-                        className="absolute inset-0 w-full h-full object-cover"
+                        className="absolute inset-0 w-full h-full object-cover z-20"
                         alt="preview"
                       />
                     )}
@@ -488,7 +489,7 @@ export default function UpscaledDashboard() {
 
                         <button
                           onClick={captureImage}
-                          className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center p-1.5 transition-transform active:scale-90 border border-white/30"
+                          className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center p-1.5 transition-transform active:scale-90 border border-white/30 z-30"
                         >
                           <div className="w-full h-full bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.5)]" />
                         </button>
@@ -503,9 +504,7 @@ export default function UpscaledDashboard() {
                     )}
 
                     {/* Shutter Flash */}
-                    {isFlashing && (
-                      <div className="absolute inset-0 bg-white z-50" />
-                    )}
+                    {isFlashing && <div className="absolute inset-0 bg-white z-50" />}
 
                     {/* Processing Overlay */}
                     {isUploading && (
@@ -533,9 +532,7 @@ export default function UpscaledDashboard() {
                     {error ? (
                       <div className="text-center pb-2">
                         <AlertCircle className="w-10 h-10 text-rose-500 mx-auto mb-3" />
-                        <p className="text-rose-900 font-bold mb-1">
-                          Analysis Failed
-                        </p>
+                        <p className="text-rose-900 font-bold mb-1">Analysis Failed</p>
                         <p className="text-rose-600 text-sm mb-6">{error}</p>
                         <Button
                           onClick={resetScanner}
@@ -548,12 +545,9 @@ export default function UpscaledDashboard() {
                     ) : noMatch ? (
                       <div className="text-center pb-2">
                         <AlertCircle className="w-10 h-10 text-slate-400 mx-auto mb-3" />
-                        <p className="text-slate-900 font-bold mb-1">
-                          No Match Found
-                        </p>
+                        <p className="text-slate-900 font-bold mb-1">No Match Found</p>
                         <p className="text-slate-500 text-sm mb-6">
-                          The model couldn't confidently identify this item. Try
-                          another angle or upload a clearer image.
+                          The model couldn't confidently identify this item. Try another angle or upload a clearer image.
                         </p>
                         <Button
                           onClick={resetScanner}
@@ -577,19 +571,11 @@ export default function UpscaledDashboard() {
                           </span>
                         </div>
 
-                        <h3 className="text-3xl font-black capitalize text-slate-900 mb-1">
-                          {topLabel}
-                        </h3>
-                        <p className="text-sm text-slate-500 mb-6">
-                          Identified via neural network.
-                        </p>
+                        <h3 className="text-3xl font-black capitalize text-slate-900 mb-1">{topLabel}</h3>
+                        <p className="text-sm text-slate-500 mb-6">Identified via neural network.</p>
 
-                        <Button
-                          onClick={resetScanner}
-                          className="w-full rounded-xl bg-slate-900 hover:bg-black text-white"
-                        >
-                          Scan Another Item{" "}
-                          <ChevronRight className="w-4 h-4 ml-1" />
+                        <Button onClick={resetScanner} className="w-full rounded-xl bg-slate-900 hover:bg-black text-white">
+                          Scan Another Item <ChevronRight className="w-4 h-4 ml-1" />
                         </Button>
                       </div>
                     )}
@@ -626,12 +612,8 @@ export default function UpscaledDashboard() {
           <Card className="border border-slate-200/60 shadow-[0_8px_30px_rgba(0,0,0,0.04)] bg-white rounded-[2rem] p-6 md:p-8">
             <div className="flex justify-between items-start mb-8">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">
-                  Total Contributions
-                </h3>
-                <p className="text-sm text-slate-500">
-                  Lifetime scanning metrics
-                </p>
+                <h3 className="text-lg font-bold text-slate-900">Total Contributions</h3>
+                <p className="text-sm text-slate-500">Lifetime scanning metrics</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                 <BarChart3 className="w-5 h-5 text-slate-400" />
@@ -642,17 +624,13 @@ export default function UpscaledDashboard() {
               <span className="text-5xl md:text-6xl font-black tracking-tighter text-slate-900 leading-none">
                 {stats?.totalScans || 0}
               </span>
-              <span className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">
-                Items
-              </span>
+              <span className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Items</span>
             </div>
 
             <div className="space-y-3">
               <div className="flex justify-between text-xs font-bold text-slate-500 uppercase tracking-wide">
                 <span>Next Milestone Progress</span>
-                <span className="text-emerald-600">
-                  {progressToNextRank.toFixed(0)}%
-                </span>
+                <span className="text-emerald-600">{progressToNextRank.toFixed(0)}%</span>
               </div>
               <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
                 <motion.div
@@ -666,9 +644,7 @@ export default function UpscaledDashboard() {
           </Card>
 
           <Card className="border border-slate-200/60 shadow-[0_8px_30px_rgba(0,0,0,0.04)] bg-white rounded-[2rem] p-6 overflow-hidden">
-            <h3 className="text-sm font-bold text-slate-900 mb-6">
-              Material Breakdown
-            </h3>
+            <h3 className="text-sm font-bold text-slate-900 mb-6">Material Breakdown</h3>
             <WasteDistributionChart stats={stats} />
           </Card>
         </div>
@@ -709,12 +685,8 @@ function BentoStat({
         </div>
       </div>
       <div>
-        <p className="text-2xl font-black text-slate-800 tracking-tight leading-none mb-1">
-          {value}
-        </p>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-          {label}
-        </p>
+        <p className="text-2xl font-black text-slate-800 tracking-tight leading-none mb-1">{value}</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
       </div>
     </div>
   );
@@ -725,9 +697,7 @@ function LoadingScreen() {
     <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
       <div className="flex flex-col items-center">
         <Aperture className="w-10 h-10 text-emerald-500 animate-spin-slow mb-4" />
-        <p className="font-mono text-xs font-bold tracking-widest text-slate-400 uppercase">
-          Loading Dashboard...
-        </p>
+        <p className="font-mono text-xs font-bold tracking-widest text-slate-400 uppercase">Loading Dashboard...</p>
       </div>
     </div>
   );
