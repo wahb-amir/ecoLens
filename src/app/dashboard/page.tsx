@@ -4,623 +4,731 @@ import React, {
   useState,
   useRef,
   useEffect,
-  useCallback,
   useMemo,
+  useCallback,
 } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { motion, AnimatePresence } from "framer-motion";
+import { Card } from "@/components/ui/card";
 import { useUserStats } from "@/lib/use-user-stats";
-import { toast } from "sonner";
-import { useEcoTracker } from "@/hooks/use-eco-tracker";
+import { useAuth } from "../providers/AuthProvider";
 import { WasteDistributionChart } from "@/components/dashboard/WasteDistributionChart";
+import { cn } from "@/lib/utils";
 import {
   Camera,
   Leaf,
-  Trophy,
   Flame,
-  RefreshCw,
   BarChart3,
-  CheckCircle2,
   X,
   Aperture,
   AlertCircle,
-  RotateCcw,
-  ImagePlus,
   Star,
+  UploadCloud,
+  CheckCircle2,
+  ChevronRight,
+  SwitchCamera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "../providers/AuthProvider";
-import { cn } from "@/lib/utils";
 
-const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+// --- Advanced Animation Constants ---
+const SPRING = { type: "spring", stiffness: 300, damping: 30 } as const;
+const FADE = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+} as const;
 
-type Prediction = { label: string; prob: number };
+// Allowed Upload Types
+const ALLOWED_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/avif",
+] as const;
 
-export default function DashboardPage() {
-  // -- Hooks & external state --
+// --- Types ---
+type FacingMode = "environment" | "user";
+
+interface Prediction {
+  label: string;
+  prob: number;
+}
+
+export default function UpscaledDashboard() {
   const { stats, refreshStats, isLoading: isStatsLoading } = useUserStats();
-  const { refreshTokens, fetchWithAuth, user } = useAuth();
+  const { fetchWithAuth, user } = useAuth();
 
-  // -- UI States --
+  // -- UI & Media States --
   const [isUploading, setIsUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
-  const [facingMode, setFacingMode] = useState<"user" | "environment">(
-    "environment",
-  );
+  const [facingMode, setFacingMode] = useState<FacingMode>("environment");
 
   // -- Data States --
   const [predictions, setPredictions] = useState<Prediction[] | null>(null);
-  const [meta, setMeta] = useState<{ inference_time?: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  // ---------------------------------------------------------
-  // LIFECYCLE & CLEANUP
-  // ---------------------------------------------------------
-  const stopCameraStream = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
+  // -- Memoized Calculations --
+  const progressToNextRank = useMemo(() => {
+    if (!stats) return 0;
+    const nextMilestone = Math.ceil((stats.totalScans + 1) / 50) * 50;
+    return (stats.totalScans / nextMilestone) * 100;
+  }, [stats]);
+
+  // --- Helpers ---
+  const normalizeLabel = (raw?: string | null): string =>
+    (raw ?? "").toString().trim().toLowerCase();
+
+  const isNoMatchPrediction = (preds: Prediction[] | null): boolean => {
+    if (!preds || preds.length === 0) return true;
+    const label = normalizeLabel(preds[0]?.label);
+    if (!label) return true;
+    // Accept variants like "unknown", "mixed", "unknown/mixed", "mixed/unknown"
+    const noMatchVariants = [
+      "unknown",
+      "mixed",
+      "unknown/mixed",
+      "mixed/unknown",
+    ];
+    return noMatchVariants.includes(label);
+  };
+
+  // -- Camera Lifecycle --
+  const stopCamera = useCallback(() => {
+    try {
+      if (videoRef.current) {
+        try {
+          videoRef.current.pause();
+        } catch {}
+        try {
+          // detach srcObject
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (videoRef.current as any).srcObject = null;
+        } catch {}
+      }
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => {
+          try {
+            track.stop();
+          } catch {}
+        });
+        streamRef.current = null;
+      }
+    } finally {
+      setIsCameraActive(false);
     }
   }, []);
 
   useEffect(() => {
-    return () => stopCameraStream();
-  }, [stopCameraStream]);
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
 
-  const clearAll = useCallback(() => {
-    stopCameraStream();
+  const initCamera = async (mode: FacingMode = "environment") => {
+    setError(null);
+
+    // Ensure any previous preview won't obscure the live view
     setPreview(null);
-    setPredictions(null);
-    setMeta(null);
-    setError(null);
-    setIsCameraActive(false);
-    setIsUploading(false);
-  }, [stopCameraStream]);
 
-  // ---------------------------------------------------------
-  // CAMERA LOGIC
-  // ---------------------------------------------------------
-  const initCamera = async (mode: "user" | "environment") => {
-    setError(null);
-    stopCameraStream();
-
-    if (!navigator?.mediaDevices?.getUserMedia) {
-      setError(
-        "Camera access is not supported by your browser or requires HTTPS.",
-      );
+    // Defensive: ensure API exists
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setError("Camera API not available in this browser.");
       return;
     }
 
+    // Stop any existing stream first
+    stopCamera();
+
+    const baseConstraints: MediaTrackConstraints = {
+      width: { ideal: 1280 }, // slightly lower may help some devices
+      height: { ideal: 720 },
+      facingMode: mode as any,
+    };
+
+    let stream: MediaStream | null = null;
+    // Try exact facingMode then fallback
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: mode,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { ...baseConstraints, facingMode: { exact: mode } as any },
       });
-
-      streamRef.current = stream;
-      setFacingMode(mode);
-      setIsCameraActive(true);
-
-      if (videoRef.current) {
-        // assign stream safely
-        try {
-          videoRef.current.srcObject = stream;
-        } catch (err) {
-          // some browsers may refuse direct assignment in odd contexts
-          console.warn("Failed to assign srcObject for camera video", err);
-        }
+    } catch {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: baseConstraints,
+        });
+      } catch (err) {
+        setError(
+          "Lens access denied or no camera found. Check system permissions or try a different device.",
+        );
+        return;
       }
-    } catch (err) {
-      setError("Camera access denied. Please check your browser permissions.");
     }
+
+    if (!stream) {
+      setError("Unable to start camera.");
+      return;
+    }
+
+    streamRef.current = stream;
+    setFacingMode(mode);
+
+    // Attach stream to video and attempt to play.
+    // Set muted(true) BEFORE calling play to maximize autoplay success.
+    try {
+      if (videoRef.current) {
+        // Ensure video element visible so any poster/placeholder doesn't hide it
+        videoRef.current.muted = true;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (videoRef.current as any).srcObject = stream;
+
+        try {
+          // try to play
+          // user initiated click should allow play, but fallback tries muted first (we already muted)
+          // await ensures we know whether play succeeded
+          // If play resolves, show camera active.
+          await videoRef.current.play();
+          // Small settle delay on some devices
+          await new Promise((r) => setTimeout(r, 50));
+          setIsCameraActive(true);
+        } catch (playErr) {
+          // As a last attempt try setting muted true again and play
+          try {
+            videoRef.current.muted = true;
+            await videoRef.current.play();
+            await new Promise((r) => setTimeout(r, 50));
+            setIsCameraActive(true);
+          } catch {
+            // Failed to play — stop and show error
+            stopCamera();
+            setError(
+              "Unable to play camera preview. Check browser autoplay / permission settings.",
+            );
+            return;
+          }
+        }
+      } else {
+        // If video not mounted (shouldn't happen because it's always rendered), keep stream in ref.
+        // We'll still mark camera active so UI can try again.
+        setIsCameraActive(true);
+      }
+    } catch (attachErr) {
+      setError("Failed to attach camera preview.");
+      stopCamera();
+    }
+  };
+
+  const toggleCamera = () => {
+    const newMode: FacingMode =
+      facingMode === "environment" ? "user" : "environment";
+    initCamera(newMode);
   };
 
   const captureImage = () => {
-    if (!videoRef.current) return;
-
-    // visual shutter
-    setIsFlashing(true);
-    setTimeout(() => setIsFlashing(false), 150);
-
-    // Defensive dimensions: videoWidth/Height can be zero if not ready
-    const vid = videoRef.current;
-    const vw = vid.videoWidth || 1280;
-    const vh = vid.videoHeight || 720;
-
-    if (vw === 0 || vh === 0) {
-      // fallback message rather than crash
-      setError("Camera not ready — try opening the camera again.");
+    const video = videoRef.current;
+    if (!video) {
+      setError("No camera available.");
       return;
     }
+
+    // Ensure video has valid dimensions
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setError("Camera is still initializing. Try again in a moment.");
+      return;
+    }
+
+    setIsFlashing(true);
 
     const canvas = document.createElement("canvas");
-    canvas.width = vw;
-    canvas.height = vh;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
     const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      setError("Could not capture image (canvas context unavailable).");
-      return;
+    if (ctx) {
+      if (facingMode === "user") {
+        ctx.save();
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      } else {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      }
     }
 
-    // Mirror for front camera
-    if (facingMode === "user") {
-      ctx.translate(canvas.width, 0);
-      ctx.scale(-1, 1);
-    }
-
-    ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
     setPreview(dataUrl);
-    stopCameraStream();
-    setIsCameraActive(false);
-    uploadForPrediction(dataUrl);
+
+    // We stop the camera after capturing to save resources — keep behavior
+    stopCamera();
+
+    setTimeout(() => setIsFlashing(false), 150);
+
+    // Send to backend
+    void handleUpload(dataUrl);
   };
 
-  // ---------------------------------------------------------
-  // UPLOAD / API LOGIC
-  // ---------------------------------------------------------
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      setError("Invalid file type. Please use PNG, JPG, or WebP.");
-      e.target.value = "";
-      return;
-    }
-    if (file.size > MAX_FILE_SIZE) {
-      setError("File is too large. Maximum size is 10MB.");
+    if (
+      !ALLOWED_MIME_TYPES.includes(
+        file.type as (typeof ALLOWED_MIME_TYPES)[number],
+      )
+    ) {
+      setError(
+        "Invalid file type. Please upload a PNG, JPG, JPEG, WEBP, or AVIF image.",
+      );
       e.target.value = "";
       return;
     }
 
     const reader = new FileReader();
-    reader.onloadend = () => {
-      const dataUrl = reader.result as string;
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
       setPreview(dataUrl);
-      uploadForPrediction(dataUrl);
+      void handleUpload(dataUrl);
     };
     reader.readAsDataURL(file);
     e.target.value = "";
   };
 
-  const uploadForPrediction = async (dataUrl: string) => {
+  const handleUpload = async (dataUrl: string) => {
     setIsUploading(true);
     setError(null);
-
     try {
-      if (!user) throw new Error("Please sign in to analyze items.");
-      await refreshTokens();
-
       const res = await fetchWithAuth("/api/predict", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dataUrl }),
       });
+      const data = await res.json();
 
-      if (!res.ok) {
-        // attempt to read message from server
-        let msg = "Our AI couldn't process this image. Please try again.";
-        try {
-          const errJson = await res.json();
-          if (errJson?.message) msg = errJson.message;
-        } catch {
-          /* ignore */
-        }
-        throw new Error(msg);
+      if (!res.ok) throw new Error(data.message || "Failed to process image.");
+
+      // If backend says it's a no-match (Unknown/Mixed), do NOT update user state or create scan modal.
+      if (data?.noMatch) {
+       
+        setPredictions(null); 
+        setError(
+          "No confident match — try a different angle or clearer photo.",
+        );
+        return;
       }
 
-      const payload = await res.json();
-
-      // Re-fetch user stats (SWR or your hook's method)
+      // Normal success path
+      setPredictions(data.predictions ?? null);
+      // Only refresh stats when we actually created a scan / returned valid match
       await refreshStats();
-
-      setPredictions(
-        Array.isArray(payload.predictions) ? payload.predictions : [],
-      );
-      setMeta({ inference_time: payload.inference_time });
-
-      if (payload.newAchievements?.length > 0) {
-        toast.success("New Achievement Unlocked!", {
-          description: `You've earned ${payload.newAchievements.length} new badge(s).`,
-        });
-      }
     } catch (err: any) {
-      setError(err?.message ?? "An unexpected error occurred.");
+      setError(err.message || "AI Inference failed. Check connectivity.");
+      setPredictions(null);
     } finally {
       setIsUploading(false);
     }
   };
-  const quickStats = useMemo(() => {
-    // Guard: if stats not loaded yet, return sensible placeholders
-    if (!stats) {
-      return [
-        {
-          icon: Leaf,
-          label: "Waste Diverted",
-          val: `0.0 kg`,
-          bg: "bg-emerald-600",
-        },
-        { icon: Star, label: "Eco Score", val: "0", bg: "bg-violet-600" },
-        { icon: Flame, label: "Active Streak", val: "—", bg: "bg-orange-500" },
-      ];
-    }
+  const resetScanner = () => {
+    setPreview(null);
+    setPredictions(null);
+    setError(null);
+  };
 
-    return [
-      {
-        icon: Leaf,
-        label: "Waste Diverted",
-        val: `${(stats.totalScans * 0.5).toFixed(1)} kg`,
-        bg: "bg-emerald-600",
-      },
-      {
-        icon: Star,
-        label: "Eco Score",
-        val: stats.ecoScore?.toLocaleString() ?? "0", // Uses your backend ecoScore
-        bg: "bg-violet-600",
-      },
-      {
-        icon: Flame,
-        label: "Active Streak",
-        val: `${stats.streak ?? 0} Days`,
-        bg:
-          stats.streak > 0
-            ? "bg-orange-500 shadow-lg shadow-orange-200"
-            : "bg-slate-400",
-      },
-    ];
-  }, [stats]);
+  // -- Render Guards --
+  if (isStatsLoading && !stats) return <LoadingScreen />;
 
-  // ---------------------------------------------------------
-  // SAFETY: don't attempt to render main UI if stats are missing
-  // ---------------------------------------------------------
-  if (!stats && isStatsLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center font-mono">
-        INITIALIZING_SYSTEM...
-      </div>
-    );
-  }
-
-  if (!stats) {
-    // If we're not loading but still have no stats, show a safe fallback
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <Card className="max-w-md w-full text-center p-8">
-          <CardTitle>No statistics available</CardTitle>
-          <CardContent>
-            <p className="text-sm text-slate-500 mb-4">
-              We couldn't load your stats. Try refreshing or signing in again.
-            </p>
-            <div className="flex gap-3 justify-center">
-              <Button onClick={() => refreshStats()}>Refresh</Button>
-              <Button variant="outline" onClick={() => clearAll()}>
-                Reset
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // ---------------------------------------------------------
-  // Quick stat tiles data (keeps JSX tidy)
-  // ---------------------------------------------------------
+  const topPred = predictions?.[0] ?? null;
+  const topLabel = topPred ? topPred.label : "";
+  const topProb = typeof topPred?.prob === "number" ? topPred.prob : 0;
+  const noMatch = isNoMatchPrediction(predictions);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-12">
-      {/* Premium Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="bg-emerald-500 p-1.5 rounded-lg">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-emerald-100 pb-24">
+      {/* Header */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-emerald-600 p-2 rounded-xl shadow-sm shadow-emerald-200">
               <Leaf className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight">EcoScan</h1>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 leading-tight">
+                EcoScan
+              </h1>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                Neural Dashboard
+              </p>
+            </div>
           </div>
-          {(preview || error || isCameraActive) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearAll}
-              className="text-slate-500 hover:text-slate-900"
-            >
-              <RotateCcw className="w-4 h-4 mr-2" /> Reset
-            </Button>
-          )}
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:block text-right">
+              <p className="text-sm font-semibold">
+                {user?.email ?? "Contributor"}
+              </p>
+              <p className="text-xs text-emerald-600 font-medium">
+                System Nominal
+              </p>
+            </div>
+            <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200 overflow-hidden">
+              <img
+                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`}
+                alt="avatar"
+              />
+            </div>
+          </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-4 md:p-8 mt-4 grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Column: Camera & Processing */}
+      {/* Main */}
+      <main className="max-w-6xl mx-auto px-6 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left: Scanner */}
         <div className="lg:col-span-5 flex flex-col gap-6">
-          <Card className="border-slate-200 shadow-sm overflow-hidden flex-shrink-0">
-            <CardContent className="p-0 relative">
-              {/* Media Viewport */}
-              <div className="relative aspect-[4/5] md:aspect-square bg-slate-100 flex items-center justify-center overflow-hidden">
-                {/* 1. Camera Active */}
-                {isCameraActive && (
-                  <>
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
-                    <div
-                      className={cn(
-                        "absolute inset-0 bg-white transition-opacity duration-150 pointer-events-none z-10",
-                        isFlashing ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-
-                    <div className="absolute bottom-6 inset-x-0 flex items-center justify-center gap-8 px-6 z-20">
-                      <Button
-                        variant="secondary"
-                        size="icon"
-                        className="rounded-full w-12 h-12 bg-black/50 hover:bg-black/70 text-white backdrop-blur-md border border-white/20"
-                        onClick={() =>
-                          initCamera(
-                            facingMode === "user" ? "environment" : "user",
-                          )
-                        }
-                        aria-label="Switch camera"
-                      >
-                        <RefreshCw className="w-5 h-5" />
-                      </Button>
-
-                      <button
-                        onClick={captureImage}
-                        className="group relative flex items-center justify-center focus:outline-none"
-                        aria-label="Capture image"
-                      >
-                        <div className="absolute w-20 h-20 rounded-full border-4 border-white/60 group-active:scale-90 transition-transform duration-200" />
-                        <div className="w-16 h-16 rounded-full bg-white shadow-xl group-active:scale-95 transition-transform duration-200" />
-                      </button>
-
-                      <Button
-                        variant="secondary"
-                        size="icon"
-                        className="rounded-full w-12 h-12 bg-black/50 hover:bg-black/70 text-white backdrop-blur-md border border-white/20"
-                        onClick={() => setIsCameraActive(false)}
-                        aria-label="Close camera"
-                      >
-                        <X className="w-5 h-5" />
-                      </Button>
-                    </div>
-                  </>
+          <Card className="relative overflow-hidden border border-slate-200/60 shadow-[0_8px_30px_rgba(0,0,0,0.04)] bg-white rounded-[2rem]">
+            <div className="aspect-[4/5] relative bg-slate-50 overflow-hidden">
+              {/* Video is always mounted and visible while attempting to start.
+                  We no longer hide the element while trying to play, which avoids a blank/black hole. */}
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                // muted attribute keeps autoplay behavior consistent
+                muted
+                className={cn(
+                  "absolute inset-0 w-full h-full object-cover transition-transform duration-300",
+                  facingMode === "user" ? "-scale-x-100" : "",
                 )}
+              />
 
-                {/* Idle / Start State */}
-                {!isCameraActive && !preview && !isUploading && (
-                  <div className="flex flex-col items-center text-center p-8 space-y-6 w-full max-w-sm">
-                    <div className="w-24 h-24 bg-white shadow-sm border border-slate-100 rounded-full flex items-center justify-center">
-                      <Camera className="w-10 h-10 text-slate-400" />
+              <AnimatePresence mode="wait">
+                {/* Idle */}
+                {!isCameraActive && !preview && (
+                  <motion.div
+                    {...FADE}
+                    className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center"
+                  >
+                    <div
+                      className="mb-8 relative group cursor-pointer"
+                      onClick={() => initCamera("environment")}
+                    >
+                      <div className="absolute inset-0 bg-emerald-100 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                      <div className="relative bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 group-hover:scale-105 transition-transform duration-300">
+                        <Camera className="w-10 h-10 text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-xl font-semibold text-slate-900 mb-1">
-                        Scan an Item
-                      </h3>
-                      <p className="text-slate-500 text-sm">
-                        Take a photo or upload an image to see how to recycle
-                        it.
-                      </p>
-                    </div>
-                    <div className="flex flex-col w-full gap-3">
+
+                    <h2 className="text-xl font-bold text-slate-800 mb-2">
+                      Scan an Item
+                    </h2>
+                    <p className="text-slate-500 text-sm mb-8 max-w-[240px]">
+                      Use your lens or upload an image to identify recyclable
+                      materials.
+                    </p>
+
+                    <div className="w-full space-y-3 px-4">
                       <Button
-                        size="lg"
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                         onClick={() => initCamera("environment")}
+                        className="w-full rounded-xl text-white bg-slate-900 hover:bg-black py-6 shadow-md text-base"
                       >
-                        <Camera className="w-4 h-4 mr-2" /> Open Camera
+                        Open Camera
                       </Button>
+
                       <Button
-                        size="lg"
                         variant="outline"
-                        className="w-full border-slate-200 hover:bg-slate-50"
                         onClick={() => fileInputRef.current?.click()}
+                        className="w-full rounded-xl py-6 border-slate-200 text-slate-600 hover:bg-slate-50"
                       >
-                        <ImagePlus className="w-4 h-4 mr-2" /> Upload Photo
+                        <UploadCloud className="mr-2 h-4 w-4 text-slate-400" />{" "}
+                        Upload Image
                       </Button>
+
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept={ALLOWED_TYPES.join(",")}
+                        accept="image/png, image/jpeg, image/jpg, image/webp, image/avif"
                         className="hidden"
-                        onChange={handleFileChange}
+                        onChange={handleFileUpload}
                       />
                     </div>
-                  </div>
+                  </motion.div>
                 )}
 
-                {/* Preview Image */}
-                {preview && !isCameraActive && (
-                  <img
-                    src={preview}
-                    alt="Captured preview"
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
-                )}
+                {/* Media Active (live OR preview) */}
+                {(isCameraActive || preview) && (
+                  <motion.div {...FADE} className="absolute inset-0 bg-black">
+                    {/* show captured preview only when camera is NOT active */}
+                    {preview && !isCameraActive && (
+                      <img
+                        src={preview}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        alt="preview"
+                      />
+                    )}
 
-                {/* Processing Overlay */}
-                {isUploading && (
-                  <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm flex flex-col items-center justify-center text-white z-30">
-                    <div className="relative flex items-center justify-center">
-                      <Aperture className="w-14 h-14 animate-spin-slow text-emerald-400" />
-                      <div className="absolute inset-0 bg-emerald-400 blur-xl opacity-20 rounded-full animate-pulse" />
-                    </div>
-                    <p className="mt-6 font-medium text-emerald-50 animate-pulse">
-                      Analyzing image...
-                    </p>
-                  </div>
-                )}
-              </div>
+                    {/* If camera initializing/running but can't show video, show a small loader */}
+                    {!isCameraActive && !preview && (
+                      <div className="absolute inset-0 flex items-center justify-center z-20">
+                        <Aperture className="w-10 h-10 text-emerald-400 animate-spin-slow" />
+                      </div>
+                    )}
 
-              {/* Status / Results Drawer */}
-              {(error || predictions) && (
-                <div className="bg-white border-t border-slate-100 p-5 md:p-6 animate-in slide-in-from-bottom-4 duration-300">
-                  {error ? (
-                    <div className="bg-red-50 border border-red-100 rounded-xl p-5 text-center">
-                      <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
-                      <p className="text-red-700 font-medium text-sm mb-5">
-                        {error}
-                      </p>
-                      <div className="flex gap-3">
+                    {/* Camera controls (only when active) */}
+                    {isCameraActive && (
+                      <div className="absolute bottom-8 inset-x-0 flex justify-center items-center gap-6 z-30">
+                        <button
+                          onClick={stopCamera}
+                          className="p-4 bg-black/40 backdrop-blur-md rounded-full text-white hover:bg-black/60 transition-all border border-white/10"
+                        >
+                          <X className="w-6 h-6" />
+                        </button>
+
+                        <button
+                          onClick={captureImage}
+                          className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center p-1.5 transition-transform active:scale-90 border border-white/30"
+                        >
+                          <div className="w-full h-full bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,0.5)]" />
+                        </button>
+
+                        <button
+                          onClick={toggleCamera}
+                          className="p-4 bg-black/40 backdrop-blur-md rounded-full text-white hover:bg-black/60 transition-all border border-white/10"
+                        >
+                          <SwitchCamera className="w-6 h-6" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Shutter Flash */}
+                    {isFlashing && (
+                      <div className="absolute inset-0 bg-white z-50" />
+                    )}
+
+                    {/* Processing Overlay */}
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex flex-col items-center justify-center z-40">
+                        <Aperture className="w-10 h-10 text-emerald-400 animate-spin-slow mb-4" />
+                        <p className="text-emerald-50 font-mono text-xs tracking-widest uppercase animate-pulse">
+                          Analyzing Material...
+                        </p>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Results Drawer */}
+              <AnimatePresence>
+                {(predictions || error) && (
+                  <motion.div
+                    initial={{ y: "100%" }}
+                    animate={{ y: 0 }}
+                    exit={{ y: "100%" }}
+                    transition={SPRING}
+                    className="absolute bottom-0 left-0 right-0 bg-white rounded-t-[2rem] p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] z-50"
+                  >
+                    {error ? (
+                      <div className="text-center pb-2">
+                        <AlertCircle className="w-10 h-10 text-rose-500 mx-auto mb-3" />
+                        <p className="text-rose-900 font-bold mb-1">
+                          Analysis Failed
+                        </p>
+                        <p className="text-rose-600 text-sm mb-6">{error}</p>
                         <Button
+                          onClick={resetScanner}
                           variant="outline"
-                          className="flex-1 bg-white border-red-200 hover:bg-red-50 text-red-700"
-                          onClick={clearAll}
+                          className="w-full rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50"
                         >
-                          Cancel
+                          Try Again
                         </Button>
+                      </div>
+                    ) : noMatch ? (
+                      <div className="text-center pb-2">
+                        <AlertCircle className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+                        <p className="text-slate-900 font-bold mb-1">
+                          No Match Found
+                        </p>
+                        <p className="text-slate-500 text-sm mb-6">
+                          The model couldn't confidently identify this item. Try
+                          another angle or upload a clearer image.
+                        </p>
                         <Button
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white"
-                          onClick={() =>
-                            preview && uploadForPrediction(preview)
-                          }
+                          onClick={resetScanner}
+                          variant="outline"
+                          className="w-full rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50"
                         >
-                          Retry
+                          Scan Another Item
                         </Button>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-5">
-                      <div className="flex justify-between items-center">
-                        <h4 className="text-xs font-bold tracking-wider text-slate-500 uppercase">
-                          Analysis Result
-                        </h4>
-                        {meta?.inference_time !== undefined && (
-                          <span className="text-[10px] font-mono bg-slate-100 px-2 py-1 rounded text-slate-500">
-                            {meta.inference_time.toFixed(2)}s
+                    ) : (
+                      <div className="pb-2">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                            <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                              Match Found
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded">
+                            {(topProb * 100).toFixed(1)}% Conf.
                           </span>
-                        )}
-                      </div>
-
-                      {predictions?.slice(0, 1).map((p) => (
-                        <div
-                          key={p.label}
-                          className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 flex items-center justify-between"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="bg-emerald-100 rounded-full p-2">
-                              <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-                            </div>
-                            <span className="text-xl font-semibold text-slate-900 capitalize">
-                              {p.label}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-2xl font-bold text-emerald-600 block leading-none">
-                              {Math.round(p.prob * 100)}%
-                            </span>
-                            <span className="text-[10px] font-medium text-emerald-600/70 uppercase tracking-wider">
-                              Confidence
-                            </span>
-                          </div>
                         </div>
-                      ))}
 
-                      <Button
-                        variant="outline"
-                        className="w-full border-slate-200 hover:bg-slate-50"
-                        onClick={clearAll}
-                      >
-                        Scan Another Item
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
+                        <h3 className="text-3xl font-black capitalize text-slate-900 mb-1">
+                          {topLabel}
+                        </h3>
+                        <p className="text-sm text-slate-500 mb-6">
+                          Identified via neural network.
+                        </p>
+
+                        <Button
+                          onClick={resetScanner}
+                          className="w-full rounded-xl bg-slate-900 hover:bg-black text-white"
+                        >
+                          Scan Another Item{" "}
+                          <ChevronRight className="w-4 h-4 ml-1" />
+                        </Button>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </Card>
         </div>
 
-        {/* Right Column: Statistics & Analytics */}
+        {/* Right Column */}
         <div className="lg:col-span-7 flex flex-col gap-6">
-          {/* Quick Stats */}
-          <div className="grid grid-cols-3 gap-4">
-            {quickStats.map((s, i) => (
-              <Card
-                key={i}
-                className="border-none shadow-sm text-white overflow-hidden relative"
-              >
-                <div className={cn("absolute inset-0 opacity-90", s.bg)} />
-                <CardContent className="p-4 md:p-5 relative z-10 flex flex-col h-full justify-between gap-4">
-                  <s.icon className="w-5 h-5 opacity-80" />
-                  <div>
-                    <p className="text-xs font-medium opacity-80 mb-1">
-                      {s.label}
-                    </p>
-                    <p className="text-lg md:text-2xl font-bold tracking-tight">
-                      {s.val}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <BentoStat
+              icon={Leaf}
+              label="Diverted"
+              value={`${((stats?.totalScans || 0) * 0.5).toFixed(1)} kg`}
+              color="emerald"
+            />
+            <BentoStat
+              icon={Star}
+              label="Eco Score"
+              value={stats?.ecoScore?.toLocaleString() || "0"}
+              color="violet"
+            />
+            <BentoStat
+              icon={Flame}
+              label="Streak"
+              value={`${stats?.streak || 0} Days`}
+              color="orange"
+            />
           </div>
 
-          {/* Engagement Card */}
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold text-slate-900">
-                  Engagement Overview
-                </CardTitle>
-                <div className="p-2 bg-slate-50 rounded-md">
-                  <BarChart3 className="w-4 h-4 text-slate-400" />
-                </div>
+          <Card className="border border-slate-200/60 shadow-[0_8px_30px_rgba(0,0,0,0.04)] bg-white rounded-[2rem] p-6 md:p-8">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Total Contributions
+                </h3>
+                <p className="text-sm text-slate-500">
+                  Lifetime scanning metrics
+                </p>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-between items-end mb-4">
-                <div>
-                  <p className="text-4xl font-bold text-slate-900 tracking-tight">
-                    {stats.totalScans}
-                  </p>
-                  <p className="text-sm font-medium text-slate-500 mt-1">
-                    Lifetime Scans
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-emerald-600">82%</p>
-                  <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">
-                    AI Accuracy
-                  </p>
-                </div>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                <BarChart3 className="w-5 h-5 text-slate-400" />
+              </div>
+            </div>
+
+            <div className="flex items-end gap-4 mb-8">
+              <span className="text-5xl md:text-6xl font-black tracking-tighter text-slate-900 leading-none">
+                {stats?.totalScans || 0}
+              </span>
+              <span className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">
+                Items
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between text-xs font-bold text-slate-500 uppercase tracking-wide">
+                <span>Next Milestone Progress</span>
+                <span className="text-emerald-600">
+                  {progressToNextRank.toFixed(0)}%
+                </span>
               </div>
               <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-out"
-                  style={{ width: "82%" }}
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progressToNextRank}%` }}
+                  transition={SPRING}
+                  className="h-full bg-emerald-500"
                 />
               </div>
-            </CardContent>
+            </div>
           </Card>
 
-          {/* Expanded Chart */}
-          <div className="hidden sm:block">
-            <Card className="border-slate-200 shadow-sm">
-              <CardContent className="p-6">
-                <WasteDistributionChart stats={stats} />
-              </CardContent>
-            </Card>
-          </div>
+          <Card className="border border-slate-200/60 shadow-[0_8px_30px_rgba(0,0,0,0.04)] bg-white rounded-[2rem] p-6 overflow-hidden">
+            <h3 className="text-sm font-bold text-slate-900 mb-6">
+              Material Breakdown
+            </h3>
+            <WasteDistributionChart stats={stats} />
+          </Card>
         </div>
       </main>
+    </div>
+  );
+}
+
+/* --- Subcomponents --- */
+
+function BentoStat({
+  icon: Icon,
+  label,
+  value,
+  color,
+}: {
+  icon: any;
+  label: string;
+  value: string;
+  color: string;
+}) {
+  const themes: Record<string, string> = {
+    emerald: "text-emerald-600 bg-emerald-50 ring-emerald-100",
+    violet: "text-violet-600 bg-violet-50 ring-violet-100",
+    orange: "text-orange-600 bg-orange-50 ring-orange-100",
+  };
+
+  return (
+    <div className="bg-white p-5 rounded-[1.5rem] shadow-sm border border-slate-200/60 flex flex-col justify-between h-32 hover:-translate-y-1 transition-transform duration-300">
+      <div className="flex justify-between items-start">
+        <div
+          className={cn(
+            "w-10 h-10 rounded-xl flex items-center justify-center ring-1 ring-inset",
+            themes[color],
+          )}
+        >
+          <Icon className="w-5 h-5" />
+        </div>
+      </div>
+      <div>
+        <p className="text-2xl font-black text-slate-800 tracking-tight leading-none mb-1">
+          {value}
+        </p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+          {label}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+      <div className="flex flex-col items-center">
+        <Aperture className="w-10 h-10 text-emerald-500 animate-spin-slow mb-4" />
+        <p className="font-mono text-xs font-bold tracking-widest text-slate-400 uppercase">
+          Loading Dashboard...
+        </p>
+      </div>
     </div>
   );
 }
