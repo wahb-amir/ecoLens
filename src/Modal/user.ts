@@ -81,8 +81,30 @@ const userSchema = new Schema<IUser>(
     toObject: { virtuals: true }
   }
 );
+userSchema.methods.updateStreak = async function() {
+  const now = new Date();
+  
+  if (!this.lastScanDate) {
+    this.streak = 1;
+  } else {
+    const lastDate = new Date(this.lastScanDate);
+    
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const lastScanDay = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
+    
+    const diffTime = today.getTime() - lastScanDay.getTime();
+    const diffDays = diffTime / (1000 * 60 * 60 * 24);
 
-// High-performance Index for Leaderboards (Composite Index)
+    if (diffDays === 1) {
+      this.streak += 1;
+    } else if (diffDays > 1) {
+      this.streak = 1;
+    } 
+  }
+
+  this.lastScanDate = now;
+  return this.save();
+};
 userSchema.index({ ecoScore: -1, totalScans: -1 });
 
 const User: Model<IUser> =

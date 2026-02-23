@@ -1,7 +1,6 @@
 // lib/achievements/config.ts
 
-export type AchievementType = 'totalScans' | 'ecoScore' | 'category';
-
+export type AchievementType = 'totalScans' | 'ecoScore' | 'category' | 'streak';;
 export interface AchievementRule {
   id: string;
   name: string;

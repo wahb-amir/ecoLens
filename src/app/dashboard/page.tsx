@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUserStats } from "@/lib/use-user-stats";
 import { toast } from "sonner";
@@ -19,6 +25,7 @@ import {
   AlertCircle,
   RotateCcw,
   ImagePlus,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "../providers/AuthProvider";
@@ -39,7 +46,9 @@ export default function DashboardPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
-  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
+  const [facingMode, setFacingMode] = useState<"user" | "environment">(
+    "environment",
+  );
 
   // -- Data States --
   const [predictions, setPredictions] = useState<Prediction[] | null>(null);
@@ -82,13 +91,19 @@ export default function DashboardPage() {
     stopCameraStream();
 
     if (!navigator?.mediaDevices?.getUserMedia) {
-      setError("Camera access is not supported by your browser or requires HTTPS.");
+      setError(
+        "Camera access is not supported by your browser or requires HTTPS.",
+      );
       return;
     }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: mode, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        video: {
+          facingMode: mode,
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
         audio: false,
       });
 
@@ -211,7 +226,9 @@ export default function DashboardPage() {
       // Re-fetch user stats (SWR or your hook's method)
       await refreshStats();
 
-      setPredictions(Array.isArray(payload.predictions) ? payload.predictions : []);
+      setPredictions(
+        Array.isArray(payload.predictions) ? payload.predictions : [],
+      );
       setMeta({ inference_time: payload.inference_time });
 
       if (payload.newAchievements?.length > 0) {
@@ -229,8 +246,13 @@ export default function DashboardPage() {
     // Guard: if stats not loaded yet, return sensible placeholders
     if (!stats) {
       return [
-        { icon: Leaf, label: "Waste Diverted", val: `0.0 kg`, bg: "bg-emerald-600" },
-        { icon: Trophy, label: "Global Rank", val: "—", bg: "bg-indigo-600" },
+        {
+          icon: Leaf,
+          label: "Waste Diverted",
+          val: `0.0 kg`,
+          bg: "bg-emerald-600",
+        },
+        { icon: Star, label: "Eco Score", val: "0", bg: "bg-violet-600" },
         { icon: Flame, label: "Active Streak", val: "—", bg: "bg-orange-500" },
       ];
     }
@@ -243,16 +265,19 @@ export default function DashboardPage() {
         bg: "bg-emerald-600",
       },
       {
-        icon: Trophy,
-        label: "Global Rank",
-        val: "Top 15%",
-        bg: "bg-indigo-600",
+        icon: Star,
+        label: "Eco Score",
+        val: stats.ecoScore?.toLocaleString() ?? "0", // Uses your backend ecoScore
+        bg: "bg-violet-600",
       },
       {
         icon: Flame,
         label: "Active Streak",
-        val: "4 Days",
-        bg: "bg-orange-500",
+        val: `${stats.streak ?? 0} Days`,
+        bg:
+          stats.streak > 0
+            ? "bg-orange-500 shadow-lg shadow-orange-200"
+            : "bg-slate-400",
       },
     ];
   }, [stats]);
@@ -347,7 +372,11 @@ export default function DashboardPage() {
                         variant="secondary"
                         size="icon"
                         className="rounded-full w-12 h-12 bg-black/50 hover:bg-black/70 text-white backdrop-blur-md border border-white/20"
-                        onClick={() => initCamera(facingMode === "user" ? "environment" : "user")}
+                        onClick={() =>
+                          initCamera(
+                            facingMode === "user" ? "environment" : "user",
+                          )
+                        }
                         aria-label="Switch camera"
                       >
                         <RefreshCw className="w-5 h-5" />
@@ -382,23 +411,49 @@ export default function DashboardPage() {
                       <Camera className="w-10 h-10 text-slate-400" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-semibold text-slate-900 mb-1">Scan an Item</h3>
-                      <p className="text-slate-500 text-sm">Take a photo or upload an image to see how to recycle it.</p>
+                      <h3 className="text-xl font-semibold text-slate-900 mb-1">
+                        Scan an Item
+                      </h3>
+                      <p className="text-slate-500 text-sm">
+                        Take a photo or upload an image to see how to recycle
+                        it.
+                      </p>
                     </div>
                     <div className="flex flex-col w-full gap-3">
-                      <Button size="lg" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm" onClick={() => initCamera("environment")}>
+                      <Button
+                        size="lg"
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                        onClick={() => initCamera("environment")}
+                      >
                         <Camera className="w-4 h-4 mr-2" /> Open Camera
                       </Button>
-                      <Button size="lg" variant="outline" className="w-full border-slate-200 hover:bg-slate-50" onClick={() => fileInputRef.current?.click()}>
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        className="w-full border-slate-200 hover:bg-slate-50"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
                         <ImagePlus className="w-4 h-4 mr-2" /> Upload Photo
                       </Button>
-                      <input ref={fileInputRef} type="file" accept={ALLOWED_TYPES.join(",")} className="hidden" onChange={handleFileChange} />
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept={ALLOWED_TYPES.join(",")}
+                        className="hidden"
+                        onChange={handleFileChange}
+                      />
                     </div>
                   </div>
                 )}
 
                 {/* Preview Image */}
-                {preview && !isCameraActive && <img src={preview} alt="Captured preview" className="absolute inset-0 w-full h-full object-cover" />}
+                {preview && !isCameraActive && (
+                  <img
+                    src={preview}
+                    alt="Captured preview"
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
+                )}
 
                 {/* Processing Overlay */}
                 {isUploading && (
@@ -407,7 +462,9 @@ export default function DashboardPage() {
                       <Aperture className="w-14 h-14 animate-spin-slow text-emerald-400" />
                       <div className="absolute inset-0 bg-emerald-400 blur-xl opacity-20 rounded-full animate-pulse" />
                     </div>
-                    <p className="mt-6 font-medium text-emerald-50 animate-pulse">Analyzing image...</p>
+                    <p className="mt-6 font-medium text-emerald-50 animate-pulse">
+                      Analyzing image...
+                    </p>
                   </div>
                 )}
               </div>
@@ -418,16 +475,33 @@ export default function DashboardPage() {
                   {error ? (
                     <div className="bg-red-50 border border-red-100 rounded-xl p-5 text-center">
                       <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
-                      <p className="text-red-700 font-medium text-sm mb-5">{error}</p>
+                      <p className="text-red-700 font-medium text-sm mb-5">
+                        {error}
+                      </p>
                       <div className="flex gap-3">
-                        <Button variant="outline" className="flex-1 bg-white border-red-200 hover:bg-red-50 text-red-700" onClick={clearAll}>Cancel</Button>
-                        <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={() => preview && uploadForPrediction(preview)}>Retry</Button>
+                        <Button
+                          variant="outline"
+                          className="flex-1 bg-white border-red-200 hover:bg-red-50 text-red-700"
+                          onClick={clearAll}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                          onClick={() =>
+                            preview && uploadForPrediction(preview)
+                          }
+                        >
+                          Retry
+                        </Button>
                       </div>
                     </div>
                   ) : (
                     <div className="space-y-5">
                       <div className="flex justify-between items-center">
-                        <h4 className="text-xs font-bold tracking-wider text-slate-500 uppercase">Analysis Result</h4>
+                        <h4 className="text-xs font-bold tracking-wider text-slate-500 uppercase">
+                          Analysis Result
+                        </h4>
                         {meta?.inference_time !== undefined && (
                           <span className="text-[10px] font-mono bg-slate-100 px-2 py-1 rounded text-slate-500">
                             {meta.inference_time.toFixed(2)}s
@@ -436,21 +510,36 @@ export default function DashboardPage() {
                       </div>
 
                       {predictions?.slice(0, 1).map((p) => (
-                        <div key={p.label} className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 flex items-center justify-between">
+                        <div
+                          key={p.label}
+                          className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 flex items-center justify-between"
+                        >
                           <div className="flex items-center gap-4">
                             <div className="bg-emerald-100 rounded-full p-2">
                               <CheckCircle2 className="w-6 h-6 text-emerald-600" />
                             </div>
-                            <span className="text-xl font-semibold text-slate-900 capitalize">{p.label}</span>
+                            <span className="text-xl font-semibold text-slate-900 capitalize">
+                              {p.label}
+                            </span>
                           </div>
                           <div className="text-right">
-                            <span className="text-2xl font-bold text-emerald-600 block leading-none">{Math.round(p.prob * 100)}%</span>
-                            <span className="text-[10px] font-medium text-emerald-600/70 uppercase tracking-wider">Confidence</span>
+                            <span className="text-2xl font-bold text-emerald-600 block leading-none">
+                              {Math.round(p.prob * 100)}%
+                            </span>
+                            <span className="text-[10px] font-medium text-emerald-600/70 uppercase tracking-wider">
+                              Confidence
+                            </span>
                           </div>
                         </div>
                       ))}
 
-                      <Button variant="outline" className="w-full border-slate-200 hover:bg-slate-50" onClick={clearAll}>Scan Another Item</Button>
+                      <Button
+                        variant="outline"
+                        className="w-full border-slate-200 hover:bg-slate-50"
+                        onClick={clearAll}
+                      >
+                        Scan Another Item
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -464,13 +553,20 @@ export default function DashboardPage() {
           {/* Quick Stats */}
           <div className="grid grid-cols-3 gap-4">
             {quickStats.map((s, i) => (
-              <Card key={i} className="border-none shadow-sm text-white overflow-hidden relative">
+              <Card
+                key={i}
+                className="border-none shadow-sm text-white overflow-hidden relative"
+              >
                 <div className={cn("absolute inset-0 opacity-90", s.bg)} />
                 <CardContent className="p-4 md:p-5 relative z-10 flex flex-col h-full justify-between gap-4">
                   <s.icon className="w-5 h-5 opacity-80" />
                   <div>
-                    <p className="text-xs font-medium opacity-80 mb-1">{s.label}</p>
-                    <p className="text-lg md:text-2xl font-bold tracking-tight">{s.val}</p>
+                    <p className="text-xs font-medium opacity-80 mb-1">
+                      {s.label}
+                    </p>
+                    <p className="text-lg md:text-2xl font-bold tracking-tight">
+                      {s.val}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -481,7 +577,9 @@ export default function DashboardPage() {
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold text-slate-900">Engagement Overview</CardTitle>
+                <CardTitle className="text-base font-semibold text-slate-900">
+                  Engagement Overview
+                </CardTitle>
                 <div className="p-2 bg-slate-50 rounded-md">
                   <BarChart3 className="w-4 h-4 text-slate-400" />
                 </div>
@@ -490,16 +588,25 @@ export default function DashboardPage() {
             <CardContent>
               <div className="flex justify-between items-end mb-4">
                 <div>
-                  <p className="text-4xl font-bold text-slate-900 tracking-tight">{stats.totalScans}</p>
-                  <p className="text-sm font-medium text-slate-500 mt-1">Lifetime Scans</p>
+                  <p className="text-4xl font-bold text-slate-900 tracking-tight">
+                    {stats.totalScans}
+                  </p>
+                  <p className="text-sm font-medium text-slate-500 mt-1">
+                    Lifetime Scans
+                  </p>
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-bold text-emerald-600">82%</p>
-                  <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">AI Accuracy</p>
+                  <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">
+                    AI Accuracy
+                  </p>
                 </div>
               </div>
               <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-out" style={{ width: "82%" }} />
+                <div
+                  className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-out"
+                  style={{ width: "82%" }}
+                />
               </div>
             </CardContent>
           </Card>
