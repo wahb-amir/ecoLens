@@ -35,7 +35,7 @@ export interface Achievement {
   // Simplified type for Lucide icons
   icon: LucideIcon;
   isUnlocked: (stats: EcoStats) => boolean;
-  type: 'totalScans' | 'ecoScore' | 'category';
+  type: 'totalScans' | 'ecoScore' | 'category' | 'streak';
   threshold: number;
   category?: WasteCategory;
 }

@@ -14,17 +14,39 @@ const mapLabelToCategory = (label: string): string => {
   if (l.includes("plastic")) return "plastic";
   if (l.includes("paper") || l.includes("cardboard")) return "paper";
   if (l.includes("glass")) return "glass";
-  if (l.includes("metal") || l.includes("can") || l.includes("aluminum")) return "metal";
-  if (l.includes("food") || l.includes("organic") || l.includes("fruit")) return "organic";
+  if (l.includes("metal") || l.includes("can") || l.includes("aluminum"))
+    return "metal";
+  if (l.includes("food") || l.includes("organic") || l.includes("fruit"))
+    return "organic";
   return "other";
+};
+const calculateStreak = (
+  lastScanDate: Date | undefined,
+  currentScanDate: Date,
+): number | undefined => {
+  if (!lastScanDate) return 1;
+
+  // Normalize to start of day (UTC) for accurate day-to-day comparison
+  const last = new Date(lastScanDate);
+  const current = new Date(currentScanDate);
+
+  last.setUTCHours(0, 0, 0, 0);
+  current.setUTCHours(0, 0, 0, 0);
+
+  const diffInMs = current.getTime() - last.getTime();
+  const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
+
+  if (diffInDays === 1) return undefined; // Consecutive: We'll use $inc: { streak: 1 }
+  if (diffInDays > 1) return 1; // Gap: Reset streak to 1
+  return 0; // Same Day: No change (returning 0 means don't increment)
 };
 
 export async function POST(req: Request) {
   try {
     await connectToDb();
-    const cookieStore =await cookies();
+    const cookieStore = await cookies();
     const acesssToken = cookieStore.get("access_token")?.value;
-    
+
     if (!acesssToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -35,7 +57,8 @@ export async function POST(req: Request) {
     const userId = decoded.uid;
 
     const { dataUrl } = await req.json();
-    if (!dataUrl) return NextResponse.json({ error: "Missing dataUrl" }, { status: 400 });
+    if (!dataUrl)
+      return NextResponse.json({ error: "Missing dataUrl" }, { status: 400 });
 
     // 2. AI PREDICTION (Your existing proxy logic)
     const target = "https://wahb-amir-ecolens.hf.space/run/predict";
@@ -46,7 +69,7 @@ export async function POST(req: Request) {
     });
 
     const payload = await proxied.json();
-    
+
     // Normalize extraction logic (Staff level: assume raw output needs cleaning)
     let predictions = [];
     if (payload?.data?.[0]?.confidences) {
@@ -57,7 +80,10 @@ export async function POST(req: Request) {
     }
 
     if (predictions.length === 0) {
-      return NextResponse.json({ error: "AI failed to identify item" }, { status: 422 });
+      return NextResponse.json(
+        { error: "AI failed to identify item" },
+        { status: 422 },
+      );
     }
 
     const topMatch = predictions[0];
@@ -65,30 +91,54 @@ export async function POST(req: Request) {
     const pointsEarned = Math.round(topMatch.prob * 20); // Scale points by confidence
 
     const objectUserId = new Types.ObjectId(userId);
+    const currentUser = await User.findById(objectUserId);
+
+    if (!currentUser)
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    const now = new Date();
+    const streakResult = calculateStreak(currentUser.lastScanDate, now);
+
+    const updateQuery: any = {
+      $inc: {
+        totalScans: 1,
+        ecoScore: pointsEarned,
+        [`categoryStats.${category}`]: 1,
+      },
+      $set: { lastScanDate: now },
+    };
+
+    if (streakResult === undefined) {
+      updateQuery.$inc.streak = 1;
+    } else if (streakResult === 1) {
+      updateQuery.$set.streak = 1;
+    }
+
     const updatedUser = await User.findOneAndUpdate(
       { _id: objectUserId },
-      { 
-        $inc: { 
-          totalScans: 1, 
-          ecoScore: pointsEarned,
-          [`categoryStats.${category}`]: 1 
-        },
-        $set: { lastScanDate: new Date() }
-      },
-      { new: true, upsert: true }
+      updateQuery,
+      { new: true, upsert: true },
     );
 
     // 4. ACHIEVEMENT ENGINE
     const newlyUnlocked: string[] = [];
-    const existingAchievementIds = new Set(updatedUser.achievements.map((a: any) => a.achievementId));
+    const existingAchievementIds = new Set(
+      updatedUser.achievements.map((a: any) => a.achievementId),
+    );
 
     for (const rule of ACHIEVEMENT_RULES) {
       if (existingAchievementIds.has(rule.id)) continue;
 
       let meetsThreshold = false;
-      if (rule.type === 'totalScans') meetsThreshold = updatedUser.totalScans >= rule.threshold;
-      if (rule.type === 'ecoScore') meetsThreshold = updatedUser.ecoScore >= rule.threshold;
-      if (rule.type === 'category') meetsThreshold = updatedUser.categoryStats[rule.category!] >= rule.threshold;
+      if (rule.type === "totalScans")
+        meetsThreshold = updatedUser.totalScans >= rule.threshold;
+      if (rule.type === "ecoScore")
+        meetsThreshold = updatedUser.ecoScore >= rule.threshold;
+      if (rule.type === "streak")
+        meetsThreshold = updatedUser.streak >= rule.threshold;
+      if (rule.type === "category")
+        meetsThreshold =
+          updatedUser.categoryStats[rule.category!] >= rule.threshold;
 
       if (meetsThreshold) {
         newlyUnlocked.push(rule.id);
@@ -99,13 +149,16 @@ export async function POST(req: Request) {
     if (newlyUnlocked.length > 0) {
       await User.updateOne(
         { _id: updatedUser._id },
-        { 
-          $push: { 
-            achievements: { 
-              $each: newlyUnlocked.map(id => ({ achievementId: id, unlockedAt: new Date() })) 
-            } 
-          } 
-        }
+        {
+          $push: {
+            achievements: {
+              $each: newlyUnlocked.map((id) => ({
+                achievementId: id,
+                unlockedAt: new Date(),
+              })),
+            },
+          },
+        },
       );
     }
 
@@ -115,10 +168,10 @@ export async function POST(req: Request) {
       label: topMatch.label,
       confidence: topMatch.prob,
       pointsEarned,
-      metadata: { 
+      metadata: {
         inference_time: payload?.duration,
-        raw_category: category 
-      }
+        raw_category: category,
+      },
     });
 
     // 6. RETURN ENRICHED RESPONSE
@@ -128,15 +181,19 @@ export async function POST(req: Request) {
       pointsEarned,
       newAchievements: newlyUnlocked,
       userStats: {
+        streak: updatedUser.streak,
         totalScans: updatedUser.totalScans,
         ecoScore: updatedUser.ecoScore,
-        achievementsCount: updatedUser.achievements.length + newlyUnlocked.length
+        achievementsCount:
+          updatedUser.achievements.length + newlyUnlocked.length,
       },
       inference_time: payload?.duration ?? null,
     });
-
   } catch (err: any) {
     console.error("Critical Backend Failure:", err);
-    return NextResponse.json({ error: "Internal Pipeline Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Pipeline Error" },
+      { status: 500 },
+    );
   }
 }
