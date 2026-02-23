@@ -1,22 +1,32 @@
-'use client';
+"use client";
 
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import type { EcoStats } from '@/lib/types';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import type { EcoStats } from "@/lib/types";
 
 const PALETTE = ["#15b54a", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6", "#6b7280"];
 
-// Define props type
+// Allow stats to be possibly undefined to be defensive (if your code always passes stats, you can keep it non-optional)
 interface WasteDistributionChartProps {
-  stats: EcoStats;
+  stats?: EcoStats | null;
 }
 
 export function WasteDistributionChart({ stats }: WasteDistributionChartProps) {
-  const data = Object.entries(stats.scansByType).map(([name, value], index) => ({
-    name: name.charAt(0).toUpperCase() + name.slice(1),
-    count: value,
-    fill: PALETTE[index % PALETTE.length],
-  }));
+  // SAFE: default to empty object when scansByType is missing
+  const scansByType = stats?.scansByType ?? {};
+
+  // Convert entries to numbers, filter out falsy / zero entries and sort for nicer visuals
+  const data = Object.entries(scansByType)
+    .map(([name, value], index) => {
+      const count = typeof value === "number" ? value : Number(value ?? 0);
+      return {
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        count: Number.isFinite(count) ? count : 0,
+        fill: PALETTE[index % PALETTE.length],
+      };
+    })
+    .filter((d) => d.count > 0) // optional: hide zero-count types
+    .sort((a, b) => b.count - a.count);
 
   if (data.length === 0) {
     return (
@@ -32,6 +42,10 @@ export function WasteDistributionChart({ stats }: WasteDistributionChartProps) {
     );
   }
 
+  // compute a nice max for the Y axis (avoid flat bars when all values are small/large)
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+  const yDomain = [0, Math.ceil(maxCount * 1.1)]; // 10% headroom
+
   return (
     <Card>
       <CardHeader>
@@ -43,7 +57,7 @@ export function WasteDistributionChart({ stats }: WasteDistributionChartProps) {
           <BarChart data={data} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="name" />
-            <YAxis allowDecimals={false} />
+            <YAxis allowDecimals={false} domain={yDomain} />
             <Tooltip
               contentStyle={{
                 background: "hsl(var(--background))",
@@ -51,7 +65,11 @@ export function WasteDistributionChart({ stats }: WasteDistributionChartProps) {
                 borderRadius: "var(--radius)",
               }}
             />
-            <Bar dataKey="count" name="Items" />
+            <Bar dataKey="count" name="Items">
+              {data.map((entry, idx) => (
+                <Cell key={`cell-${idx}`} fill={entry.fill} />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </CardContent>

@@ -1,6 +1,21 @@
 // lib/models/User.ts
 import mongoose, { Schema, Document, Model } from "mongoose";
 
+// Sub-interface for better organization
+export interface IAchievement {
+  achievementId: string;
+  unlockedAt: Date;
+}
+
+export interface ICategoryStats {
+  plastic: number;
+  paper: number;
+  glass: number;
+  metal: number;
+  organic: number;
+  other: number;
+}
+
 export interface IUser extends Document {
   name: string;
   email: string;
@@ -8,6 +23,15 @@ export interface IUser extends Document {
   isVerified: boolean;
   verifyToken?: string;
   tokens: { token: string; createdAt: Date }[];
+  
+  // --- ECO-TRACKER FIELDS ---
+  ecoScore: number;
+  totalScans: number;
+  streak: number;
+  lastScanDate?: Date;
+  categoryStats: ICategoryStats;
+  achievements: IAchievement[];
+  
   createdAt: Date;
   updatedAt: Date;
 }
@@ -15,8 +39,8 @@ export interface IUser extends Document {
 const userSchema = new Schema<IUser>(
   {
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    email: { type: String, required: true, unique: true, index: true }, // Indexed for performance
+    password: { type: String, required: true, select: false }, // Security: Don't return password by default
     isVerified: { type: Boolean, default: false },
     verifyToken: { type: String },
     tokens: [
@@ -25,11 +49,42 @@ const userSchema = new Schema<IUser>(
         createdAt: { type: Date, default: Date.now },
       },
     ],
+
+    // --- ECO-TRACKER DATA ---
+    ecoScore: { type: Number, default: 0, index: true }, // Indexing score for Leaderboards
+    totalScans: { type: Number, default: 0 },
+    streak: { type: Number, default: 0 },
+    lastScanDate: { type: Date },
+    
+    // Nested object for categorical analytics
+    categoryStats: {
+      plastic: { type: Number, default: 0 },
+      paper: { type: Number, default: 0 },
+      glass: { type: Number, default: 0 },
+      metal: { type: Number, default: 0 },
+      organic: { type: Number, default: 0 },
+      other: { type: Number, default: 0 },
+    },
+
+    // Achievement Tracking
+    achievements: [
+      {
+        achievementId: { type: String, required: true },
+        unlockedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
-  { timestamps: true }
+  { 
+    timestamps: true,
+    // Add this for performance when transforming to JSON
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+  }
 );
 
-// 3️⃣ Avoid recompiling model in dev (Next.js hot reload)
+// High-performance Index for Leaderboards (Composite Index)
+userSchema.index({ ecoScore: -1, totalScans: -1 });
+
 const User: Model<IUser> =
   mongoose.models.User || mongoose.model<IUser>("User", userSchema);
 

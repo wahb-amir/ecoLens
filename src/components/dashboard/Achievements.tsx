@@ -24,7 +24,7 @@ import Balancer from "react-wrap-balancer";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface AchievementsProps {
-  stats: EcoStats;
+  stats?: EcoStats | null;
 }
 
 /**
@@ -37,11 +37,48 @@ const AchievementCard = ({
   index,
 }: {
   ach: any;
-  stats: EcoStats;
+  stats?: EcoStats | null;
   index: number;
 }) => {
-  const unlocked = ach.isUnlocked(stats);
-  const progress = getAchievementProgress(ach, stats);
+  // Determine unlocked status safely:
+  const unlocked = useMemo(() => {
+    // First, prefer explicit unlockedAchievements list on stats (fast)
+    if (stats?.unlockedAchievements?.includes?.(ach.id)) return true;
+
+    // Only call the achievement's isUnlocked when stats exists (avoid throwing)
+    if (stats && typeof ach.isUnlocked === "function") {
+      try {
+        return Boolean(ach.isUnlocked(stats));
+      } catch {
+        return false;
+      }
+    }
+
+    return false;
+  }, [stats?.unlockedAchievements, ach]);
+
+  // Safe progress: only call getAchievementProgress when stats exist,
+  // otherwise supply a safe default object so the UI can render without checks.
+  const progress = useMemo(() => {
+    if (!stats) {
+      return { current: 0, target: 0, percentage: 0 };
+    }
+    try {
+      const p = getAchievementProgress(ach, stats);
+      // normalize shape and guard against NaN/undefined fields
+      return {
+        current: Number(p?.current ?? 0),
+        target: Number(p?.target ?? 0),
+        percentage:
+          typeof p?.percentage === "number" && Number.isFinite(p.percentage)
+            ? Math.max(0, Math.min(100, p.percentage))
+            : 0,
+      };
+    } catch {
+      return { current: 0, target: 0, percentage: 0 };
+    }
+  }, [ach, stats]);
+
   const Icon = ach.icon;
 
   return (
@@ -115,7 +152,7 @@ const AchievementCard = ({
         </CardHeader>
 
         <CardContent className="relative flex-grow flex flex-col justify-end pb-6">
-          {!unlocked && progress ? (
+          {!unlocked && progress && progress.target > 0 ? (
             <div className="w-full space-y-3">
               <div className="flex justify-between items-end">
                 <div className="flex flex-col gap-0.5">
@@ -123,19 +160,19 @@ const AchievementCard = ({
                     <Target className="w-3 h-3" /> Progress
                   </span>
                   <span className="text-xs font-black text-slate-700 font-mono">
-                    {(progress?.current ?? 0).toLocaleString()}{" "}
+                    {(progress.current ?? 0).toLocaleString()}{" "}
                     <span className="text-slate-300">/</span>{" "}
-                    {(progress?.target ?? 0).toLocaleString()}
+                    {(progress.target ?? 0).toLocaleString()}
                   </span>
                 </div>
                 <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                  {Math.round(progress.percentage)}%
+                  {Math.round(progress?.percentage ?? 0)}%
                 </span>
               </div>
               <div className="relative h-1.5 w-full bg-slate-200/50 rounded-full overflow-hidden shadow-inner">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${progress.percentage}%` }}
+                  animate={{ width: `${progress?.percentage ?? 0}%` }}
                   transition={{ duration: 1, ease: "easeOut" }}
                   className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full"
                 />
@@ -161,11 +198,29 @@ const AchievementCard = ({
 };
 
 export function Achievements({ stats }: AchievementsProps) {
-  // Memoize summary to prevent recalculations
+  // Memoize summary to prevent recalculations and guard when stats missing
   const summary = useMemo(() => {
-    const unlockedCount = achievements.filter((a) =>
-      a.isUnlocked(stats),
-    ).length;
+    if (!stats) {
+      return {
+        unlocked: 0,
+        total: achievements.length,
+        percentage: 0,
+      };
+    }
+
+    const unlockedCount = achievements.filter((a) => {
+      // prefer explicit unlockedAchievements list, fallback to function if present
+      if (stats.unlockedAchievements?.includes?.(a.id)) return true;
+      if (typeof a.isUnlocked === "function") {
+        try {
+          return Boolean(a.isUnlocked(stats));
+        } catch {
+          return false;
+        }
+      }
+      return false;
+    }).length;
+
     return {
       unlocked: unlockedCount,
       total: achievements.length,

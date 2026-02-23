@@ -1,81 +1,142 @@
 // app/api/predict/route.ts
 import { NextResponse } from "next/server";
+import connectToDb from "@/lib/mongo";
+import User from "@/Modal/user";
+import Scan from "@/Modal/scan";
+import { cookies } from "next/headers";
+import { verifyAccessToken } from "@/lib/token";
+import { Types } from "mongoose";
+import { ACHIEVEMENT_RULES } from "@/lib/achievements/config";
+
+// Helper to map AI labels to our DB categories
+const mapLabelToCategory = (label: string): string => {
+  const l = label.toLowerCase();
+  if (l.includes("plastic")) return "plastic";
+  if (l.includes("paper") || l.includes("cardboard")) return "paper";
+  if (l.includes("glass")) return "glass";
+  if (l.includes("metal") || l.includes("can") || l.includes("aluminum")) return "metal";
+  if (l.includes("food") || l.includes("organic") || l.includes("fruit")) return "organic";
+  return "other";
+};
 
 export async function POST(req: Request) {
   try {
-    const json = await req.json().catch(() => null);
-    const dataUrl = json?.dataUrl;
-    if (!dataUrl) {
-      return new NextResponse(JSON.stringify({ error: "Missing dataUrl in request body" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+    await connectToDb();
+    const cookieStore =await cookies();
+    const acesssToken = cookieStore.get("access_token")?.value;
+    
+    if (!acesssToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const decoded = verifyAccessToken(acesssToken);
+    if (!decoded || decoded.uid === undefined) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+    const userId = decoded.uid;
 
-    // Hardcoded HF Space run/predict for testing:
+    const { dataUrl } = await req.json();
+    if (!dataUrl) return NextResponse.json({ error: "Missing dataUrl" }, { status: 400 });
+
+    // 2. AI PREDICTION (Your existing proxy logic)
     const target = "https://wahb-amir-ecolens.hf.space/run/predict";
-
     const proxied = await fetch(target, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: [dataUrl] }),
     });
 
-    const status = proxied.status;
-
-    // try to parse JSON; if not JSON, forward raw text
-    let payload: any;
-    try {
-      payload = await proxied.json();
-    } catch (err) {
-      const text = await proxied.text();
-      const contentType = proxied.headers.get("content-type") || "text/plain";
-      return new NextResponse(text, { status, headers: { "Content-Type": contentType } });
+    const payload = await proxied.json();
+    
+    // Normalize extraction logic (Staff level: assume raw output needs cleaning)
+    let predictions = [];
+    if (payload?.data?.[0]?.confidences) {
+      predictions = payload.data[0].confidences.map((c: any) => ({
+        label: String(c.label),
+        prob: Number(c.confidence),
+      }));
     }
 
-    // Extract prediction data from HF Space response.
-    // HF Space sample:
-    // { data: [{ label: "clothes", confidences: [{label, confidence}, ...] }], duration: 1.88, ... }
-    let extracted: any = null;
+    if (predictions.length === 0) {
+      return NextResponse.json({ error: "AI failed to identify item" }, { status: 422 });
+    }
 
-    if (payload?.data) {
-      // if data is an array and first element contains confidences -> use confidences
-      if (Array.isArray(payload.data) && payload.data.length > 0) {
-        const first = payload.data[0];
-        if (first && Array.isArray(first.confidences) && first.confidences.length > 0) {
-          // normalize to [{ label, prob }]
-          extracted = first.confidences.map((c: any) => ({
-            label: String(c.label ?? c[0] ?? "unknown"),
-            prob: Number(c.confidence ?? c.prob ?? 0),
-          }));
-        } else {
-          // fallback: return payload.data as-is (array of labels or objects)
-          extracted = payload.data;
-        }
-      } else {
-        extracted = payload.data;
+    const topMatch = predictions[0];
+    const category = mapLabelToCategory(topMatch.label);
+    const pointsEarned = Math.round(topMatch.prob * 20); // Scale points by confidence
+
+    const objectUserId = new Types.ObjectId(userId);
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: objectUserId },
+      { 
+        $inc: { 
+          totalScans: 1, 
+          ecoScore: pointsEarned,
+          [`categoryStats.${category}`]: 1 
+        },
+        $set: { lastScanDate: new Date() }
+      },
+      { new: true, upsert: true }
+    );
+
+    // 4. ACHIEVEMENT ENGINE
+    const newlyUnlocked: string[] = [];
+    const existingAchievementIds = new Set(updatedUser.achievements.map((a: any) => a.achievementId));
+
+    for (const rule of ACHIEVEMENT_RULES) {
+      if (existingAchievementIds.has(rule.id)) continue;
+
+      let meetsThreshold = false;
+      if (rule.type === 'totalScans') meetsThreshold = updatedUser.totalScans >= rule.threshold;
+      if (rule.type === 'ecoScore') meetsThreshold = updatedUser.ecoScore >= rule.threshold;
+      if (rule.type === 'category') meetsThreshold = updatedUser.categoryStats[rule.category!] >= rule.threshold;
+
+      if (meetsThreshold) {
+        newlyUnlocked.push(rule.id);
       }
-    } else if (payload?.predictions) {
-      extracted = payload.predictions;
-    } else {
-      // last-resort: return entire payload
-      extracted = payload;
     }
 
-    const responseBody = {
-      predictions: extracted,
-      inference_time: payload?.duration ?? payload?.average_duration ?? null,
-    };
+    // If new achievements found, push them to the user document
+    if (newlyUnlocked.length > 0) {
+      await User.updateOne(
+        { _id: updatedUser._id },
+        { 
+          $push: { 
+            achievements: { 
+              $each: newlyUnlocked.map(id => ({ achievementId: id, unlockedAt: new Date() })) 
+            } 
+          } 
+        }
+      );
+    }
 
-    return new NextResponse(JSON.stringify(responseBody), {
-      status,
-      headers: { "Content-Type": "application/json" },
+    // 5. PERSIST SCAN HISTORY
+    const scanLog = await Scan.create({
+      userId: updatedUser._id,
+      label: topMatch.label,
+      confidence: topMatch.prob,
+      pointsEarned,
+      metadata: { 
+        inference_time: payload?.duration,
+        raw_category: category 
+      }
     });
+
+    // 6. RETURN ENRICHED RESPONSE
+    return NextResponse.json({
+      predictions,
+      scanId: scanLog._id,
+      pointsEarned,
+      newAchievements: newlyUnlocked,
+      userStats: {
+        totalScans: updatedUser.totalScans,
+        ecoScore: updatedUser.ecoScore,
+        achievementsCount: updatedUser.achievements.length + newlyUnlocked.length
+      },
+      inference_time: payload?.duration ?? null,
+    });
+
   } catch (err: any) {
-    console.error("Proxy error:", err);
-    return new NextResponse(JSON.stringify({ error: err?.message ?? "Unknown server error" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    console.error("Critical Backend Failure:", err);
+    return NextResponse.json({ error: "Internal Pipeline Error" }, { status: 500 });
   }
 }
