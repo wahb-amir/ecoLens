@@ -592,7 +592,7 @@ export default function UpscaledDashboard() {
             <BentoStat
               icon={Leaf}
               label="Diverted"
-              value={`${((stats?.totalScans || 0) * 0.5).toFixed(1)} kg`}
+              value={`${((stats?.totalScans || 0) * 0.1).toFixed(1)} kg`}
               color="emerald"
             />
             <BentoStat

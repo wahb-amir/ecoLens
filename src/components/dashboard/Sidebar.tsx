@@ -3,14 +3,16 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Star, Recycle, X, Menu } from "lucide-react";
+import { Home, Star, Recycle, X, Menu, Trophy } from "lucide-react"; // Added Trophy
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
+// Updated navItems with Leaderboard
 const navItems = [
   { href: "/dashboard", label: "Network Overview", icon: Home, id: "NAV_01" },
-  { href: "/dashboard/achievements", label: "Mission Protocols", icon: Star, id: "NAV_02" },
+  { href: "/dashboard/leaderboard", label: "Global Rankings", icon: Trophy, id: "NAV_02" },
+  { href: "/dashboard/achievements", label: "Mission Protocols", icon: Star, id: "NAV_03" },
 ];
 
 export function Sidebar() {
@@ -19,7 +21,7 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile top bar (visible on small screens) */}
+      {/* Mobile top bar */}
       <div className="md:hidden w-full border-b border-slate-100 bg-white">
         <div className="max-w-[1400px] mx-auto px-4 py-3 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
@@ -108,7 +110,6 @@ export function Sidebar() {
       <AnimatePresence>
         {open && (
           <>
-            {/* Backdrop */}
             <motion.div
               className="fixed inset-0 z-40 bg-black/40 md:hidden"
               initial={{ opacity: 0 }}
@@ -173,7 +174,7 @@ export function Sidebar() {
                         </Button>
                         {isActive && (
                           <motion.div
-                            layoutId="activeNav"
+                            layoutId="activeNavMobile"
                             className="absolute inset-0 bg-emerald-50/50 -z-0"
                             transition={{ type: "spring", stiffness: 300, damping: 30 }}
                           />
