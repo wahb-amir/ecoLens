@@ -46,7 +46,7 @@ export default function RegisterPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Registration failed. Please try again.");
+        throw new Error(data.msg || "Registration failed. Please try again.");
       }
       setStatus({
         type: "success",

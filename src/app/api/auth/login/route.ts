@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     const normalizedEmail = email.trim().toLowerCase();
 
     // Find user
-    const user = await User.findOne({ email: normalizedEmail }).exec();
+    const user = await User.findOne({ email: normalizedEmail }) .select('+password').exec();
     // If user not found -> generic 401 (do not reveal existence)
     if (!user) {
       return NextResponse.json(
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify password before doing any account-specific flows
+   
     const isMatch = await comparePassword(password, user.password);
     if (!isMatch) {
       return NextResponse.json(
