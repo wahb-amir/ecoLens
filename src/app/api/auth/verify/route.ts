@@ -184,10 +184,10 @@ export async function POST(req: Request): Promise<Response> {
     );
 
     // Access token: short lived (15 minutes)
-    res.cookies.set("accessToken", accessToken, cookieOpts(15 * 60 * 1000)); // ms -> maxAge seconds
+    res.cookies.set("access_token", accessToken, cookieOpts(15 * 60 * 1000)); // ms -> maxAge seconds
 
     // Refresh token: long lived (7 days)
-    res.cookies.set("refreshToken", refreshToken, cookieOpts(7 * 24 * 60 * 60 * 1000));
+    res.cookies.set("refresh_token", refreshToken, cookieOpts(7 * 24 * 60 * 60 * 1000));
 
     // Clear verificationToken cookie (set to empty + maxAge 0)
     res.cookies.set("verificationToken", "", { path: "/", maxAge: 0 });
