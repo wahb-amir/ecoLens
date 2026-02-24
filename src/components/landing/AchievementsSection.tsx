@@ -1,166 +1,149 @@
-'use client';
+"use client";
 
-import React from "react";
-import { motion, Variants } from "framer-motion";
-import { Leaf, Award, BarChart,Zap,ShieldCheck,Trophy,Crown,Hammer, LucideIcon } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence, useSpring, useTransform } from "framer-motion";
+import { Leaf, Award, BarChart, Zap, ShieldCheck, Trophy, Crown, Hammer, LucideIcon, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// --- Types & Interfaces ---
+// --- Types ---
 interface Achievement {
   id: string;
   name: string;
   description: string;
   icon: LucideIcon;
+  color: string;
 }
 
-interface StatItem {
-  icon: LucideIcon;
-  value: number;
-  label: string;
-  suffix?: string;
-  colorClass: string;
-}
-
-// --- Mock Data (Replace with your actual import) ---
 const achievements: Achievement[] = [
-  { id: 'ACH_first-step', name: 'First Step', description: 'Classify your first item.', icon: Zap },
-  { id: 'ACH_waste-warrior', name: 'Waste Warrior', description: 'Classify 50 items.', icon: ShieldCheck },
-  { id: 'ACH_score-pro', name: 'Score Pro', description: 'Reach an Eco Score of 1000.', icon: Trophy },
-  { id: 'ACH_planet-protector', name: 'Planet Protector', description: 'Classify 100 items.', icon: Crown },
-  { id: 'ACH_metal-master', name: 'Metal Master', description: 'Classify 10 metal items.', icon: Hammer },
+  { id: '1', name: 'First Step', description: 'Classify your first item.', icon: Zap, color: "text-amber-500" },
+  { id: '2', name: 'Waste Warrior', description: 'Classify 50 items.', icon: ShieldCheck, color: "text-emerald-500" },
+  { id: '3', name: 'Score Pro', description: 'Reach an Eco Score of 1000.', icon: Trophy, color: "text-blue-500" },
+  { id: '4', name: 'Planet Protector', description: 'Classify 100 items.', icon: Crown, color: "text-cyan-500" },
+  { id: '5', name: 'Metal Master', description: 'Classify 10 metal items.', icon: Hammer, color: "text-slate-600" },
 ];
 
-// --- Animation Variants ---
-const containerVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.2 },
-  },
-};
-
-const itemVariants: Variants = {
-  hidden: { y: 20, opacity: 0 },
-  visible: { y: 0, opacity: 1, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
-};
-
-// --- Sub-Components ---
-
-const StatCard = ({ stat, index }: { stat: StatItem; index: number }) => {
-  const Icon = stat.icon;
-  return (
-    <motion.div variants={itemVariants} className="h-full">
-      <Card className={cn(
-        "relative h-full overflow-hidden border-none bg-white/60 backdrop-blur-xl p-8 transition-all duration-500 group",
-        "ring-1 ring-slate-200/60 hover:ring-emerald-500/30 hover:shadow-[0_20px_50px_rgba(0,0,0,0.05)]"
-      )}>
-        {/* Abstract Background Glow */}
-        <div className={cn(
-          "absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-10 blur-3xl transition-opacity group-hover:opacity-20",
-          stat.colorClass.replace('text', 'bg')
-        )} />
-
-        <div className="relative z-10 flex flex-col items-center">
-          <div className={cn(
-            "mb-6 p-4 rounded-2xl transition-all duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm",
-            "bg-white ring-1 ring-slate-100",
-            stat.colorClass
-          )}>
-            <Icon className="w-8 h-8" />
-          </div>
-
-          <div className="flex items-baseline gap-1">
-            <span className="text-5xl font-extrabold tracking-tight text-slate-900">
-              {/* Replace with your <AnimatedCounter /> component */}
-              {stat.value.toLocaleString()}
-            </span>
-            {stat.suffix && (
-              <span className="text-2xl font-bold text-slate-400">{stat.suffix}</span>
-            )}
-          </div>
-
-          <p className="mt-3 text-sm font-semibold uppercase tracking-[0.15em] text-slate-500">
-            {stat.label}
-          </p>
-        </div>
-      </Card>
-    </motion.div>
-  );
-};
+function AnimatedNumber({ value }: { value: number }) {
+  const spring = useSpring(0, { stiffness: 45, damping: 20 });
+  const display = useTransform(spring, (current) => Math.floor(current).toLocaleString());
+  useEffect(() => spring.set(value), [value, spring]);
+  return <motion.span>{display}</motion.span>;
+}
 
 export default function AchievementsSection() {
-  const stats: StatItem[] = [
-    { icon: Leaf, value: 12845, label: "Total Recycled", colorClass: "text-emerald-600" },
-    { icon: Award, value: 432, label: "Eco-Warriors", colorClass: "text-sky-600" },
-    { icon: BarChart, value: 89, suffix: "%", label: "AI Accuracy", colorClass: "text-indigo-600" },
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Close card when pressing Escape
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedId(null); };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
+
+  const stats = [
+    { icon: Leaf, value: 12845, label: "Total Recycled", text: "text-emerald-600", bg: "bg-emerald-50" },
+    { icon: Award, value: 432, label: "Eco-Warriors", text: "text-cyan-600", bg: "bg-cyan-50" },
+    { icon: BarChart, value: 89, suffix: "%", label: "AI Accuracy", text: "text-blue-600", bg: "bg-blue-50" },
   ];
 
   return (
-    <motion.section
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, margin: "-100px" }}
-      variants={containerVariants}
-      className="relative w-full max-w-7xl py-24 px-6 md:py-40 mx-auto overflow-hidden"
-    >
-      {/* Background Polish */}
+    <section className="relative w-full py-24 px-6 lg:py-32 bg-white isolate">
+      {/* Background Polish (No scroll blocking) */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full -z-10 pointer-events-none">
-        <div className="absolute top-24 left-1/4 w-96 h-96 bg-emerald-50/50 blur-[120px] rounded-full" />
-        <div className="absolute bottom-24 right-1/4 w-96 h-96 bg-blue-50/50 blur-[120px] rounded-full" />
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-50/30 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-cyan-50/30 blur-[120px] rounded-full" />
       </div>
 
-      <div className="relative z-10 text-center">
-        {/* Header Section */}
-        <motion.div variants={itemVariants} className="mb-20">
-          <span className="text-emerald-600 font-mono text-[11px] font-bold uppercase tracking-[0.3em] mb-4 block">
-            Collective Metrics
-          </span>
-          <h2 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tight mb-6">
-            Your Impact & <span className="text-emerald-600 italic">Achievements</span>
-          </h2>
-          <p className="max-w-2xl mx-auto text-lg text-slate-500 font-light leading-relaxed">
-            Real-time data synchronization across our global network of sustainable contributors.
-          </p>
-        </motion.div>
+      <div className="max-w-6xl mx-auto relative">
+        <div className="mb-24">
+          <motion.div className="flex items-center gap-2 mb-4">
+            <Sparkles size={16} className="text-emerald-500" />
+            <span className="text-emerald-600 font-mono text-[10px] font-black uppercase tracking-[0.3em]">Milestones</span>
+          </motion.div>
+          <motion.h2 className="text-4xl lg:text-6xl font-black text-slate-900 tracking-tighter max-w-2xl">
+            Your impact on the <span className="text-emerald-500">planet</span>, quantified.
+          </motion.h2>
+        </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-6 sm:grid-cols-3 mb-32">
-          {stats.map((stat, idx) => (
-            <StatCard key={idx} stat={stat} index={idx} />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-32 relative z-10">
+          {stats.map((stat, i) => (
+            <motion.div
+              key={i}
+              className="group p-8 rounded-[2rem] bg-slate-50/50 border border-slate-100/80 hover:bg-white hover:shadow-2xl transition-all duration-500"
+            >
+              <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center mb-6", stat.bg)}>
+                <stat.icon size={24} className={stat.text} />
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-5xl font-black text-slate-900 tracking-tighter">
+                  <AnimatedNumber value={stat.value} />
+                </span>
+                {stat.suffix && <span className="text-xl font-bold text-slate-400">{stat.suffix}</span>}
+              </div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400 mt-2">{stat.label}</p>
+            </motion.div>
           ))}
         </div>
 
-        {/* Badges Section */}
-        <motion.div variants={itemVariants} className="pt-20 border-t border-slate-100">
-          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-[0.2em] mb-12">
-            Protocol Milestones
-          </h3>
-          <div className="flex flex-wrap justify-center gap-12 md:gap-20">
-            {achievements.map((ach) => (
-              <motion.div
-                key={ach.id}
-                whileHover={{ y: -5 }}
-                className="flex flex-col items-center group cursor-help"
+        {/* Badges Container */}
+        <div className="flex flex-wrap justify-center gap-6 md:gap-10 relative z-20">
+          {achievements.map((ach) => {
+            const isActive = selectedId === ach.id;
+            return (
+              <div 
+                key={ach.id} 
+                className="relative"
+                style={{ zIndex: isActive ? 100 : 1 }} 
+                // Desktop Hover Support
+                onMouseEnter={() => setSelectedId(ach.id)}
+                onMouseLeave={() => setSelectedId(null)}
               >
-                <div className="relative">
-                  {/* Badge "Plate" */}
-                  <div className="p-6 rounded-full bg-gradient-to-b from-white to-slate-50 ring-1 ring-slate-200 shadow-sm transition-all duration-300 group-hover:shadow-xl group-hover:ring-emerald-200">
-                    <ach.icon className="w-8 h-8 text-slate-400 group-hover:text-emerald-600 transition-colors duration-300" />
-                  </div>
-                  {/* Active Indicator */}
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white scale-0 group-hover:scale-100 transition-transform duration-300" />
-                </div>
-                
-                <p className="mt-4 font-bold text-slate-800 text-sm tracking-tight">{ach.name}</p>
-                <p className="text-[11px] text-slate-400 font-medium uppercase tracking-tighter mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {ach.description}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
+                {/* The "Ping" Signal */}
+                {!isActive && (
+                  <div className="absolute inset-0 rounded-full bg-emerald-400/20 animate-ping pointer-events-none" style={{ animationDuration: '3s' }} />
+                )}
+
+                <motion.button
+                  layout
+                  onClick={() => setSelectedId(isActive ? null : ach.id)}
+                  className={cn(
+                    "relative z-[90] w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center transition-all duration-500",
+                    "bg-white border-2",
+                    isActive 
+                      ? "border-emerald-500 shadow-2xl scale-110 ring-8 ring-emerald-50" 
+                      : "border-slate-100 shadow-sm"
+                  )}
+                >
+                  <ach.icon size={28} className={cn("transition-colors duration-500", isActive ? ach.color : "text-slate-300")} />
+                </motion.button>
+
+                <AnimatePresence>
+                  {isActive && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                      className="absolute top-[115%] left-1/2 -translate-x-1/2 w-72 p-6 bg-white border border-slate-100 shadow-[0_30px_70px_rgba(0,0,0,0.12)] rounded-[2.5rem] z-[100] text-center pointer-events-none md:pointer-events-auto"
+                    >
+                      <div className={cn("mx-auto w-12 h-12 rounded-2xl flex items-center justify-center mb-4 bg-slate-50 shadow-inner", ach.color)}>
+                        <ach.icon size={24} />
+                      </div>
+                      <h4 className="text-slate-900 font-black text-xl mb-2">{ach.name}</h4>
+                      <p className="text-slate-500 text-sm leading-relaxed mb-6">{ach.description}</p>
+                      
+                      <div className="flex items-center justify-center gap-2 py-3 px-4 bg-emerald-50 rounded-2xl">
+                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                         <span className="text-[10px] font-black text-emerald-700 uppercase tracking-[0.15em]">Verified Milestone</span>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </motion.section>
+    </section>
   );
 }
