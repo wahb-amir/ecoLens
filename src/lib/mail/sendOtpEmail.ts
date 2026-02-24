@@ -2,6 +2,8 @@
 import nodemailer from "nodemailer";
 
 type SendOtpOpts = {
+  heading?: string;      // Custom heading (e.g., "Reset your password")
+  subHeading?: string;   // Custom subtext
   expiryMinutes?: number;
   origin?: string;
   maxRetries?: number;
@@ -13,18 +15,21 @@ type SendOtpOpts = {
   verifyLogoPath?: string; 
   verifyTimeoutMs?: number;
   sendTimeoutMs?: number;
+  includeEmailInRedirect?: string; // Optional: appends &email=... to the link
 };
 
 const DEFAULT_OPTS: Required<Pick<
   SendOtpOpts,
-  "expiryMinutes" | "maxRetries" | "retryDelayMs" | "verifyPath" | "verifyQueryParam" | "verifyLinkText" | "verifyLogoPath" | "verifyTimeoutMs" | "sendTimeoutMs"
+  "heading" | "subHeading" | "expiryMinutes" | "maxRetries" | "retryDelayMs" | "verifyPath" | "verifyQueryParam" | "verifyLinkText" | "verifyLogoPath" | "verifyTimeoutMs" | "sendTimeoutMs"
 >> = {
+  heading: "Your verification code",
+  subHeading: "Use the code below to verify your account.",
   expiryMinutes: 60,
   maxRetries: 3,
   retryDelayMs: 500,
   verifyPath: "/verify-otp",
   verifyQueryParam: "otp",
-  verifyLinkText: "Open verification page",
+  verifyLinkText: "Verify Account",
   verifyLogoPath: "/logo.png",
   verifyTimeoutMs: 3000,
   sendTimeoutMs: 10000,
@@ -88,8 +93,15 @@ function sanitizeOrigin(o: unknown): string {
   return o.replace(/\/+$/, "");
 }
 
-function buildHtml(otp: string, expiryMinutes: number, verifyUrl: string, logoSrc: string, verifyLinkText: string) {
-  const escapedOtp = otp; // OTP is numeric; if you include user values, escape properly
+function buildHtml(
+  otp: string, 
+  expiryMinutes: number, 
+  verifyUrl: string, 
+  logoSrc: string, 
+  verifyLinkText: string,
+  heading: string,
+  subHeading: string
+) {
   const logoImg = logoSrc ? `<img src="${logoSrc}" alt="Logo" width="72" style="display:block;margin:0 auto 12px auto;">` : "";
   return `<!doctype html>
 <html lang="en">
@@ -100,15 +112,15 @@ function buildHtml(otp: string, expiryMinutes: number, verifyUrl: string, logoSr
       <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 6px 30px rgba(2,6,23,0.08);">
         <tr><td style="padding:28px 32px;text-align:center;">
           ${logoImg}
-          <h1 style="margin:0;font-size:20px;color:#1f7a3a;">Your verification code</h1>
-          <p style="color:#495057;margin:8px 0 20px;">Use the code below to verify your account. It expires in <strong>${expiryMinutes} minutes</strong>.</p>
-          <div style="display:inline-block;padding:18px 22px;border-radius:10px;background:linear-gradient(180deg,#f7fff9,#effef0);border:1px solid #e6f6ea;">
-            <div style="font-family:monospace,ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas;font-size:28px;letter-spacing:4px;color:#0f5132;">
-              ${escapedOtp}
+          <h1 style="margin:0;font-size:22px;color:#1a1a1a;font-weight:700;">${heading}</h1>
+          <p style="color:#495057;margin:8px 0 20px;font-size:16px;">${subHeading} It expires in <strong>${expiryMinutes} minutes</strong>.</p>
+          <div style="display:inline-block;padding:18px 22px;border-radius:10px;background:#f8f9fa;border:1px solid #e9ecef;">
+            <div style="font-family:monospace;font-size:32px;letter-spacing:6px;color:#1f7a3a;font-weight:bold;">
+              ${otp}
             </div>
           </div>
-          ${verifyUrl ? `<div style="margin-top:18px;"><a href="${verifyUrl}" style="background:#1f7a3a;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600;">${verifyLinkText}</a></div>` : ""}
-          <p style="color:#9aa4a8;font-size:13px;margin-top:20px;line-height:1.4;">If you didn't request this, ignore this email. Code expires after ${expiryMinutes} minutes.</p>
+          ${verifyUrl ? `<div style="margin-top:24px;"><a href="${verifyUrl}" style="background:#1f7a3a;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600;font-size:16px;">${verifyLinkText}</a></div>` : ""}
+          <p style="color:#9aa4a8;font-size:13px;margin-top:24px;line-height:1.4;">If you didn't request this, you can safely ignore this email.</p>
           <hr style="border:none;border-top:1px solid #eef2f4;margin:20px 0 12px;">
           <p style="color:#96a0a4;font-size:12px;margin:0;">© ${new Date().getFullYear()} ${process.env.EMAIL_BRAND ?? "Your Company"}. All rights reserved.</p>
         </td></tr>
@@ -124,28 +136,36 @@ export async function sendOtpEmail(
   otp: string,
   opts: SendOtpOpts = {}
 ): Promise<{ success: true; info: nodemailer.SentMessageInfo }> {
-  if (!toEmail || typeof toEmail !== "string") throw new TypeError("toEmail is required and must be a string");
-  if (!otp || typeof otp !== "string") throw new TypeError("otp is required and must be a string");
+  if (!toEmail || typeof toEmail !== "string") throw new TypeError("toEmail is required");
+  if (!otp || typeof otp !== "string") throw new TypeError("otp is required");
 
   const conf = { ...DEFAULT_OPTS, ...opts };
-  const expiryMinutes = Number(conf.expiryMinutes);
+  
+  // Build dynamic verify URL with optional email param for pre-filling frontend
+  let verifyUrl = "";
+  const origin = sanitizeOrigin(conf.origin ?? process.env.ORIGIN ?? "");
+  if (origin || opts.verifyUrl) {
+    verifyUrl = opts.verifyUrl ?? `${origin}${conf.verifyPath}?${encodeURIComponent(conf.verifyQueryParam)}=${encodeURIComponent(otp)}`;
+    if (conf.includeEmailInRedirect) {
+        verifyUrl += `&email=${encodeURIComponent(conf.includeEmailInRedirect)}`;
+    }
+  }
 
-  // build verify URL
-  const verifyUrl =
-    opts.verifyUrl ??
-    (sanitizeOrigin(conf.origin ?? process.env.ORIGIN ?? "") || "") // sanitize origin
-      ? `${sanitizeOrigin(conf.origin ?? process.env.ORIGIN ?? "")}${conf.verifyPath}?${encodeURIComponent(conf.verifyQueryParam)}=${encodeURIComponent(otp)}`
-      : "";
-
-  // From address
   const fromAddress = process.env.EMAIL_FROM ?? `"${process.env.EMAIL_BRAND ?? "App"}" <${process.env.EMAIL_USER}>`;
-
-  const logoSrc = (sanitizeOrigin(conf.origin ?? process.env.ORIGIN ?? "") ? sanitizeOrigin(conf.origin ?? process.env.ORIGIN ?? "") : "") + (conf.verifyLogoPath ?? "");
-  const html = buildHtml(otp, expiryMinutes, verifyUrl, logoSrc, conf.verifyLinkText);
-
+  const logoSrc = origin ? `${origin}${conf.verifyLogoPath}` : "";
+  
+  const html = buildHtml(
+    otp, 
+    Number(conf.expiryMinutes), 
+    verifyUrl, 
+    logoSrc, 
+    conf.verifyLinkText,
+    conf.heading,
+    conf.subHeading
+  );
   const textParts = [
     `Your verification code is: ${otp}`,
-    `It expires in ${expiryMinutes} minutes.`,
+    `It expires in ${conf.expiryMinutes} minutes.`,
     verifyUrl ? `Open: ${verifyUrl}` : "",
   ].filter(Boolean);
   const text = textParts.join("\n\n");
