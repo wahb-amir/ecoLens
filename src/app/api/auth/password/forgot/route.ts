@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     await sendOtpEmail(email, otp, {
       heading: "Reset your password",
       subHeading: "Use the code below to securely verify your identity.",
-      verifyPath: "/auth/forgot-password/verify",
+      verifyPath: "/forgot-password/verify",
       verifyLinkText: "Verify & Reset Password",
       includeEmailInRedirect: email,
       expiryMinutes: 15,
