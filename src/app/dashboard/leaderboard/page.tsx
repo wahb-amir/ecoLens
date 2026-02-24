@@ -127,10 +127,13 @@ export default function EcoLeaderboard() {
       {/* Header - Narrow Layout Fix */}
       <div className="bg-white border-b border-slate-100">
         <div className="max-w-5xl mx-auto px-3 xs:px-4 py-6 md:py-10">
-          <header className="flex flex-col gap-4 items-center md:flex-row md:justify-between">
-            <div className="text-center md:text-left">
+          <header className="flex flex-col gap-4 items-center md:flex-col md:justify-between">
+            <div className="text-center ">
               <h1 className="text-xl xs:text-2xl md:text-4xl font-black text-slate-900 tracking-tight leading-none">
-                Eco Heroes
+                Eco <br/>
+                 <span className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 bg-clip-text text-transparent italic">
+              Heroes.
+            </span>
               </h1>
               <p className="text-slate-500 text-[10px] xs:text-xs md:text-sm mt-1.5">
                 Making a global impact.
