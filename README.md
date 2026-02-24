@@ -1,7 +1,7 @@
 #  AI‑Powered Waste Classification & Gamified Environmental Impact
 **Website:** https://eco.wahb.space  
 **Repository:** `github.com/wahb-amir/ecolens`  
-**Status:** Production-ready (documentation)  
+**Status:** Ready (documentation)  
 
 ---
 
