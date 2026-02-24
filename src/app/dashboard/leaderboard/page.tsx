@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/app/providers/AuthProvider";
 import { useRouter } from "next/navigation";
 
+// --- Components ---
+
 const Avatar = memo(
   ({
     seed,
@@ -32,7 +34,6 @@ const Avatar = memo(
       <div
         className={cn(
           "flex items-center justify-center rounded-full shadow-inner font-bold shrink-0 transition-all",
-          // Scaled down for 320px support
           large
             ? "h-12 w-12 xs:h-14 xs:w-14 md:h-20 md:w-20 text-base md:text-xl"
             : "h-8 w-8 xs:h-9 xs:w-9 text-[10px] xs:text-xs",
@@ -57,8 +58,59 @@ const TrendIcon = ({ trend }: { trend: "up" | "down" | "stable" }) => {
   return <Minus className="w-3 h-3 xs:w-3.5 xs:h-3.5 text-slate-300" />;
 };
 
+const LeaderboardSkeleton = () => {
+  const ShimmerLine = ({ className }: { className?: string }) => (
+    <div className={cn("relative overflow-hidden bg-slate-200", className)}>
+      <motion.div
+        animate={{ x: ["-100%", "100%"] }}
+        transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+      />
+    </div>
+  );
+
+  return (
+    <div className="w-full space-y-8">
+      <div className="flex flex-row items-end justify-center gap-2 md:gap-4 mb-10 h-48 md:h-72">
+        {[2, 1, 3].map((rank) => (
+          <div
+            key={rank}
+            className={cn(
+              "flex-1 bg-white rounded-xl md:rounded-[2rem] border border-slate-100 flex flex-col items-center p-4 shadow-sm",
+              rank === 1 ? "h-full" : rank === 2 ? "h-[85%]" : "h-[75%]",
+            )}
+          >
+            <div className="w-8 h-8 md:w-12 md:h-12 rounded-full bg-slate-100 mb-4" />
+            <ShimmerLine className="w-12 md:w-20 h-3 md:h-4 rounded-full mb-2" />
+            <ShimmerLine className="w-8 md:w-12 h-2 md:h-3 rounded-full opacity-50" />
+          </div>
+        ))}
+      </div>
+      <div className="bg-white rounded-xl md:rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm">
+        {[...Array(6)].map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center justify-between p-4 border-b border-slate-50"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-slate-100" />
+              <div className="space-y-2">
+                <ShimmerLine className="w-24 h-3 rounded-full" />
+                <ShimmerLine className="w-16 h-2 rounded-full opacity-50" />
+              </div>
+            </div>
+            <ShimmerLine className="w-12 h-4 rounded-full" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// --- Main Page ---
+
 export default function EcoLeaderboard() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const {
     leaderboard = [],
@@ -70,32 +122,27 @@ export default function EcoLeaderboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debounced, setDebounced] = useState("");
   const [sortBy, setSortBy] = useState<"score" | "scans" | "rank">("score");
-  const debounceRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!user && !loading) router.replace("/login");
-  }, [user, loading, router]);
+    if (!user && !authLoading) router.replace("/login");
+  }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(
-      () => setDebounced(searchTerm.trim()),
-      200,
-    );
-    return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    };
+    const timer = setTimeout(() => setDebounced(searchTerm.trim()), 200);
+    return () => clearTimeout(timer);
   }, [searchTerm]);
 
   const filtered = useMemo(() => {
     const q = debounced.toLowerCase();
     let list = [...leaderboard];
     if (q) list = list.filter((u) => u.name?.toLowerCase().includes(q));
-    list.sort((a, b) => {
-      if (sortBy === "score") return b.ecoScore - a.ecoScore;
-      if (sortBy === "scans") return b.totalScans - a.totalScans;
-      return a.rank - b.rank;
-    });
+    list.sort((a, b) =>
+      sortBy === "score"
+        ? b.ecoScore - a.ecoScore
+        : sortBy === "scans"
+          ? b.totalScans - a.totalScans
+          : a.rank - b.rank,
+    );
     return list;
   }, [leaderboard, debounced, sortBy]);
 
@@ -124,19 +171,31 @@ export default function EcoLeaderboard() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-32 overflow-x-hidden">
-      {/* Header - Narrow Layout Fix */}
+      {/* Top Progress Bar - Perfect for Video Intro */}
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            initial={{ scaleX: 0, originX: 0 }}
+            animate={{ scaleX: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.2, ease: "easeInOut" }}
+            className="fixed top-0 left-0 right-0 h-1 bg-emerald-500 z-[100] shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+          />
+        )}
+      </AnimatePresence>
+
       <div className="bg-white border-b border-slate-100">
         <div className="max-w-5xl mx-auto px-3 xs:px-4 py-6 md:py-10">
-          <header className="flex flex-col gap-4 items-center md:flex-col md:justify-between">
-            <div className="text-center ">
+          <header className="flex flex-col gap-4 items-center">
+            <div className="text-center">
               <h1 className="text-xl xs:text-2xl md:text-4xl font-black text-slate-900 tracking-tight leading-none">
                 Eco
                 <span className="ml-2 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 bg-clip-text text-transparent italic">
                   Heroes.
                 </span>
               </h1>
-              <p className="text-slate-500 text-[10px] xs:text-xs md:text-sm mt-1.5">
-                Making a global impact.
+              <p className="text-slate-500 text-[10px] xs:text-xs md:text-sm mt-1.5 font-medium tracking-wide">
+                MAKING A GLOBAL IMPACT.
               </p>
             </div>
 
@@ -146,15 +205,15 @@ export default function EcoLeaderboard() {
                 <input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search..."
-                  className="w-full pl-8 pr-3 py-2 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-emerald-500/20 outline-none text-xs xs:text-sm transition-all"
+                  placeholder="Search environmentalists..."
+                  className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-emerald-500/20 outline-none text-xs xs:text-sm transition-all shadow-inner"
                 />
               </div>
               <button
                 onClick={() =>
                   setSortBy((prev) => (prev === "score" ? "scans" : "score"))
                 }
-                className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shrink-0"
+                className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shrink-0 shadow-sm"
               >
                 <ChevronDown className="w-4 h-4" />
               </button>
@@ -164,182 +223,236 @@ export default function EcoLeaderboard() {
       </div>
 
       <main className="max-w-5xl mx-auto px-2 xs:px-4 mt-4 md:-mt-6">
-        {/* Winning Stage - Ultra-Responsive Grid */}
-        {!isSearching && topThree.length === 3 && (
-          <div className="flex flex-row items-end justify-center gap-1.5 xs:gap-2 md:gap-4 mb-10 overflow-visible">
-            {topThree.map((p, idx) => {
-              const isFirst = p.rank === 1;
-              const isSecond = p.rank === 2;
-              const isThird = p.rank === 3;
-              const trophyColor = isFirst
-                ? "text-yellow-500"
-                : isSecond
-                  ? "text-slate-400"
-                  : "text-orange-600";
-              const borderColor = isFirst
-                ? "border-yellow-200"
-                : isSecond
-                  ? "border-slate-200"
-                  : "border-orange-200";
+        <AnimatePresence mode="wait">
+          {isLoading ? (
+            <motion.div
+              key="loader"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <LeaderboardSkeleton />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="content"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+            >
+              {/* Podium Section */}
+              {!isSearching && topThree.length === 3 && (
+                <div className="flex flex-row items-end justify-center gap-1.5 xs:gap-2 md:gap-4 mb-10 overflow-visible">
+                  {topThree.map((p, idx) => {
+                    const isFirst = p.rank === 1;
+                    const trophyColor = isFirst
+                      ? "text-yellow-500"
+                      : p.rank === 2
+                        ? "text-slate-400"
+                        : "text-orange-600";
+                    return (
+                      <motion.div
+                        key={p.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: idx * 0.15 }}
+                        className={cn(
+                          "flex-1 flex flex-col items-center group max-w-[240px]",
+                          isFirst ? "z-10" : "opacity-95",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "w-full bg-white rounded-xl md:rounded-[2.5rem] p-3 md:p-6 shadow-xl border-2 flex flex-col items-center relative transition-all hover:translate-y-[-4px]",
+                            isFirst
+                              ? "border-yellow-200 pb-12 pt-4 shadow-yellow-500/10"
+                              : "border-slate-100 pb-6 pt-2 shadow-slate-500/5",
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "p-1.5 md:p-2 rounded-xl mb-3",
+                              isFirst ? "bg-yellow-50" : "bg-slate-50",
+                            )}
+                          >
+                            <Trophy
+                              className={cn(
+                                "w-4 h-4 md:w-6 md:h-6",
+                                trophyColor,
+                              )}
+                            />
+                          </div>
+                          <Avatar
+                            seed={p.name}
+                            large={isFirst}
+                            className={
+                              isFirst ? "ring-4 ring-yellow-400/20" : ""
+                            }
+                          />
+                          <div className="mt-3 text-center w-full">
+                            <p className="text-[9px] md:text-[11px] font-black text-slate-400 uppercase tracking-tighter">
+                              Rank {p.rank}
+                            </p>
+                            <h3 className="font-bold text-slate-900 text-xs md:text-sm truncate">
+                              {p.isCurrentUser ? "You" : p.name}
+                            </h3>
+                            <p className="mt-1 text-sm md:text-2xl font-black text-slate-900 tracking-tight">
+                              {p.ecoScore.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
 
-              return (
-                <motion.div
-                  key={p.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.1 }}
-                  className={cn(
-                    "flex-1 flex flex-col items-center group min-w-0 max-w-[100px] xs:max-w-[140px] md:max-w-[240px]",
-                    isFirst ? "z-10" : "opacity-95",
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "w-full bg-white rounded-xl md:rounded-[2rem] p-2 xs:p-3 md:p-6 shadow-lg border-2 flex flex-col items-center relative transition-transform",
-                      borderColor,
-                      isFirst ? "pb-6 md:pb-12 pt-4" : "pb-3 md:pb-6 pt-2",
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "p-1 md:p-2 rounded-lg mb-2",
-                        isFirst
-                          ? "bg-yellow-50"
-                          : isSecond
-                            ? "bg-slate-50"
-                            : "bg-orange-50",
-                      )}
-                    >
-                      <Trophy
-                        className={cn("w-3.5 h-3.5 md:w-6 md:h-6", trophyColor)}
-                      />
-                    </div>
-
-                    <Avatar
-                      seed={p.name}
-                      large={isFirst}
-                      className={isFirst ? "ring-2 ring-yellow-400" : ""}
-                    />
-
-                    <div className="mt-2 text-center w-full">
-                      <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase">
-                        Rank {p.rank}
-                      </p>
-                      <h3 className="font-bold text-slate-900 text-[9px] xs:text-[11px] md:text-sm truncate px-1">
-                        {p.isCurrentUser ? "You" : p.name}
-                      </h3>
-                      <p className="mt-0.5 text-xs md:text-xl font-black text-slate-900 leading-tight">
-                        {p.ecoScore.toLocaleString()}
-                      </p>
-                    </div>
-
-                    <div
-                      className={cn(
-                        "absolute -bottom-1.5 left-2 right-2 h-1 rounded-full shadow-sm",
-                        isFirst
-                          ? "bg-yellow-400"
-                          : isSecond
-                            ? "bg-slate-300"
-                            : "bg-orange-600",
-                      )}
-                    />
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Table - Optimized for Narrow Viewports */}
-        <section className="bg-white rounded-xl md:rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-100">
-                <th className="pl-3 pr-1 py-4 text-[9px] font-black uppercase tracking-widest text-slate-400 w-8 text-center">
-                  #
-                </th>
-                <th className="px-1 py-4 text-[9px] font-black uppercase tracking-widest text-slate-400">
-                  Hero
-                </th>
-                <th className="px-1 py-4 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right">
-                  Points
-                </th>
-                <th className="pl-1 pr-3 py-4 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center w-10">
-                  Trend
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {tableList.map((row) => (
-                <tr
-                  key={row.id}
-                  className={cn(
-                    "transition-colors",
-                    row.isCurrentUser && "bg-emerald-50/50",
-                  )}
-                >
-                  <td className="pl-3 pr-1 py-3 text-center">
-                    <span className="text-[10px] font-mono font-bold text-slate-400">
-                      #{row.rank}
-                    </span>
-                  </td>
-                  <td className="px-1 py-3">
-                    <div className="flex items-center gap-1.5 xs:gap-2.5">
-                      <Avatar seed={row.name} />
-                      <div className="min-w-0">
-                        <p className="font-bold text-slate-800 text-[11px] xs:text-sm truncate leading-none">
-                          {row.name}
-                        </p>
-                        <span className="text-[9px] text-slate-400 font-medium whitespace-nowrap">
-                          {row.totalScans} scans
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-1 py-3 text-right">
-                    <span className="font-mono font-black text-slate-900 text-xs xs:text-sm whitespace-nowrap">
-                      {row.ecoScore.toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="pl-1 pr-3 py-3 text-center shrink-0">
-                    <TrendIcon trend={row.trend} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+              {/* Table Section */}
+              <section className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/50 border-b border-slate-100">
+                      <th className="pl-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 w-12">
+                        #
+                      </th>
+                      <th className="px-2 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                        Hero
+                      </th>
+                      <th className="px-2 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 text-right">
+                        Points
+                      </th>
+                      <th className="pr-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 text-center w-16">
+                        Trend
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {tableList.map((row) => (
+                      <tr
+                        key={row.id}
+                        className={cn(
+                          "transition-colors hover:bg-slate-50/80",
+                          row.isCurrentUser && "bg-emerald-50/40",
+                        )}
+                      >
+                        <td className="pl-6 py-4">
+                          <span className="text-xs font-mono font-bold text-slate-400">
+                            #{row.rank}
+                          </span>
+                        </td>
+                        <td className="px-2 py-4">
+                          <div className="flex items-center gap-3">
+                            <Avatar seed={row.name} />
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-800 text-sm truncate">
+                                {row.name}
+                              </p>
+                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">
+                                {row.totalScans} scans
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-2 py-4 text-right">
+                          <span className="font-mono font-black text-slate-900 text-sm">
+                            {row.ecoScore.toLocaleString()}
+                          </span>
+                        </td>
+                        <td className="pr-6 py-4 text-center">
+                          <TrendIcon trend={row.trend} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
-      {/* Floating Bar - Width fix for 320px */}
+      {/* Floating Bar - Premium Glass HUD */}
       <AnimatePresence>
-        {currentUser && currentUser.rank > 3 && !isSearching && (
+        {currentUser && currentUser.rank > 3 && !isSearching && !isLoading && (
           <motion.div
-            initial={{ y: 50, x: "-50%", opacity: 0 }}
-            animate={{ y: 0, x: "-50%", opacity: 1 }}
-            exit={{ y: 50, x: "-50%", opacity: 0 }}
-            className="fixed bottom-4 left-1/2 w-[95%] max-w-[340px] z-50"
+            initial={{ y: 120, x: "-50%", opacity: 0, scale: 0.9 }}
+            animate={{ y: 0, x: "-50%", opacity: 1, scale: 1 }}
+            exit={{ y: 120, x: "-50%", opacity: 0, scale: 0.9 }}
+            transition={{
+              type: "spring",
+              damping: 20,
+              stiffness: 100,
+              delay: 0.5,
+            }}
+            whileHover={{ scale: 1.02 }}
+            className="fixed bottom-8 left-1/2 w-[94%] max-w-[420px] z-50 cursor-pointer"
           >
-            <div className="bg-slate-900/95 backdrop-blur-md text-white rounded-xl p-3 shadow-2xl flex items-center justify-between border border-white/10">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center font-black text-white shrink-0 text-xs">
-                  {currentUser.name.charAt(0).toUpperCase()}
+            <div className="group bg-slate-900/95 backdrop-blur-2xl text-white rounded-[2.5rem] p-3 pl-5 pr-7 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5),0_0_30px_rgba(16,185,129,0.1)] flex items-center justify-between border border-white/10 relative overflow-hidden">
+              <motion.div
+                animate={{ x: ["-100%", "200%"] }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: "linear",
+                  repeatDelay: 5,
+                }}
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent w-1/2 -skew-x-12"
+              />
+              <div className="flex items-center gap-4 relative z-10">
+                <div className="relative">
+                  <Avatar
+                    seed={currentUser.name}
+                    className="h-11 w-11 border-2 border-emerald-500/40"
+                  />
+                  <motion.div
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ repeat: Infinity, duration: 2 }}
+                    className="absolute -top-1 -right-1 bg-emerald-500 rounded-full p-0.5 border-2 border-slate-900 shadow-lg"
+                  >
+                    <TrendIcon trend={currentUser.trend} />
+                  </motion.div>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-bold truncate leading-none">
-                    {currentUser.name}
-                  </p>
-                  <p className="text-[9px] text-slate-400 uppercase font-bold mt-1">
-                    Rank #{currentUser.rank}
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-sm font-black truncate uppercase italic tracking-tight">
+                      {currentUser.name}
+                    </p>
+                    <span className="bg-emerald-500 text-slate-900 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">
+                      YOU
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-bold flex items-center gap-1.5 uppercase tracking-widest">
+                    Rank <span className="text-white">#{currentUser.rank}</span>{" "}
+                    <span className="w-1 h-1 bg-slate-700 rounded-full" />{" "}
+                    <span className="text-emerald-400/90">
+                      {currentUser.totalScans} Scans
+                    </span>
                   </p>
                 </div>
               </div>
-              <div className="text-right shrink-0 ml-2">
-                <div className="text-sm font-black text-emerald-400 leading-none">
-                  {currentUser.ecoScore.toLocaleString()}
+              <div className="flex flex-col items-end shrink-0 relative z-10">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-white tabular-nums leading-none tracking-tighter">
+                    {currentUser.ecoScore.toLocaleString()}
+                  </span>
+                  <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">
+                    Pts
+                  </span>
                 </div>
-                <div className="text-[8px] font-mono text-slate-500 uppercase">
-                  Points
+                <div className="flex flex-col items-end gap-1 mt-1.5">
+                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">
+                    Next Rank in{" "}
+                    <span className="text-emerald-400">140 pts</span>
+                  </p>
+                  <div className="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-white/5">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: "72%" }}
+                      transition={{ duration: 1.5, delay: 1, ease: "circOut" }}
+                      className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.5)]"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
