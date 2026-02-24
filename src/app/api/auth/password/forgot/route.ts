@@ -1,4 +1,3 @@
-// app/api/auth/password/forgot/route.ts
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import connectToDb from "@/lib/mongo";
@@ -14,32 +13,54 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
-    const user = await User.findOne({ email });
+    // Explicitly select security fields
+    const user = await User.findOne({ email }).select("+resetOtpExpiry");
 
-    // FAANG Security: Always return 200 to prevent email enumeration attacks
+    // FAANG Security: Constant response to prevent account enumeration
     if (!user) {
       return NextResponse.json({
         message: "If an account exists, a code was sent.",
       });
     }
 
-    // 1. Generate 6-digit OTP
+    // --- Rate Limiting Logic ---
+    if (user.resetOtpExpiry) {
+      const now = new Date();
+      const expiry = new Date(user.resetOtpExpiry);
+      
+      // Calculate how long ago the code was sent. 
+      // OTP is valid for 15m. If > 14m left, they just requested it.
+      const msLeft = expiry.getTime() - now.getTime();
+      const cooldownMs = 1 * 60 * 1000; // 1 minute cooldown
+      const totalWindowMs = 15 * 60 * 1000;
+      
+      const isWithinCooldown = msLeft > (totalWindowMs - cooldownMs);
+
+      if (isWithinCooldown) {
+        const secondsToWait = Math.ceil((msLeft - (totalWindowMs - cooldownMs)) / 1000);
+        return NextResponse.json(
+          { error: `Please wait ${secondsToWait}s before requesting a new code.` },
+          { status: 429 } // Too Many Requests
+        );
+      }
+    }
+
+    // 1. Generate new 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // 2. Hash OTP before storing (Security Best Practice)
+    // 2. Hash OTP
     const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
-    // 3. Save to database with 15-minute expiry
+    // 3. Update User
     user.resetOtp = hashedOtp;
-    user.resetOtpExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+    user.resetOtpExpiry = new Date(Date.now() + 15 * 60 * 1000); 
     await user.save();
 
-    // 4. Send the email using your existing utility
+    // 4. Send Email
     await sendOtpEmail(email, otp, {
       heading: "Reset your password",
-      subHeading:
-        "We received a request to reset your password. Use the code below to securely verify your identity.",
-      verifyPath: "/forgot-password/verify",
+      subHeading: "Use the code below to securely verify your identity.",
+      verifyPath: "/auth/forgot-password/verify",
       verifyLinkText: "Verify & Reset Password",
       includeEmailInRedirect: email,
       expiryMinutes: 15,
