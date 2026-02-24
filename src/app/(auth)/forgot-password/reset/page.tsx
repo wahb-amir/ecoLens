@@ -28,7 +28,7 @@ function ResetPasswordForm() {
   useEffect(() => {
     if (!token || !uid) {
       toast.error("Invalid or expired reset link. Please try again.");
-      router.push("/auth/forgot-password");
+      router.push("/forgot-password");
     }
   }, [token, uid, router]);
 
