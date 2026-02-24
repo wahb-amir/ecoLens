@@ -46,7 +46,7 @@ EcoLens turns everyday waste photos into measurable environmental impact. Users 
 
 ---
 
-# API Reference — Single File
+# API Reference 
 **Base URL:** `https://eco.wahb.space/api`
 
 > All endpoints use JSON. Auth is via `httpOnly` cookies unless otherwise noted.
