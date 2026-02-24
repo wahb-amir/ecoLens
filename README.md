@@ -346,3 +346,71 @@ cp .env.example .env
 # populate MONGO_URI, JWT secrets, SMTP creds, HF_SPACE_URL (if any)
 ```
 4. Run
+
+# 🌿 EcoLens Project Structure
+
+```
+📄 components.json
+📄 next.config.ts
+📄 next-env.d.ts
+📄 package.json
+📄 package-lock.json
+📄 pnpm-lock.yaml
+📄 postcss.config.mjs
+
+📁 public
+├── 🌙 2k_moon.avif
+├── 🌙 2k_moon.jpg
+├── 🌞 earth_day.avif
+├── 🌞 earth_day.jpg
+├── 🌃 earth_night.avif
+├── 🌃 earth_night.jpg
+├── 🟩 favicon_io
+│ ├── 128x128.png
+│ ├── 16x16.png
+│ ├── 256x256.png
+│ ├── 32x32.png
+│ ├── 48x48.png
+│ └── 64x64.png
+└── 🏷️ logo.jpg
+
+📄 README.md
+
+📁 screenshots
+└── 🖼️ flowchart.png
+
+📁 src
+├── 📁 app
+│ ├── ⚙️ actions
+│ │ └── process-scan.ts
+│ ├── 🔑 api
+│ │ ├── auth/... (login, logout, register, verify, password)
+│ │ ├── leaderboard/route.ts
+│ │ ├── predict/route.ts
+│ │ └── user/... (me, stats)
+│ ├── (auth)/... (login, register, forgot-password, verify-otp)
+│ ├── 🖥️ dashboard/... (achievements, leaderboard, page.tsx, layout)
+│ ├── 🌐 globals.css
+│ ├── 🏗️ layout.tsx
+│ ├── ❌ not-found.tsx
+│ └── 🔐 providers/AuthProvider.tsx
+├── 📁 components/... (auth, dashboard, landing, layout, ui, waste-classifier)
+├── 🎣 hooks/... (use-eco-tracker, useLeaderboard, use-toast)
+├── 📚 lib/... (achievements, data, eco-points, leaderboard, mail, mongo, password, placeholder-images, token, types, utils)
+└── 🗂️ Modal/... (otp.ts, scan.ts, user.ts)
+
+📄 tailwind.config.ts
+📄 tsconfig.json
+
+✨ Notes:
+
+📁 = Folder
+
+📄 = File
+
+🖼️ = Screenshot/Image
+
+⚙️ / 🔑 / 🖥️ / 🎣 / 📚 / 🗂️ = Custom emojis to make sections visually distinct
+
+Files in parentheses (...) represent grouped files for brevity
+```
