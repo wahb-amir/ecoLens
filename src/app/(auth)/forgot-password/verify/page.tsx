@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
-export default function PasswordVerifyOTPPage() {
+// 1. Internal component that safely uses useSearchParams
+function VerifyOTPForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // Get email from URL: http://localhost:3000/.../verify?email=op422010@gmail.com
+  // Extract email from URL
   const email = searchParams.get("email");
   
   const [otp, setOtp] = useState("");
@@ -21,7 +22,7 @@ export default function PasswordVerifyOTPPage() {
   useEffect(() => {
     if (!email) {
       toast.error("Invalid session. Please enter your email again.");
-      router.push("/auth/forgot-password");
+      router.push("/forgot-password");
     }
   }, [email, router]);
 
@@ -42,8 +43,7 @@ export default function PasswordVerifyOTPPage() {
 
       if (res.ok) {
         toast.success("Identity verified!");
-        // FAANG Flow: Move to the reset page with the recoveryToken and userId
-        // We pass these in the URL for the next page to consume
+        // Handover to reset page
         const query = new URLSearchParams({
           email: email || "",
           token: data.recoveryToken,
@@ -64,7 +64,7 @@ export default function PasswordVerifyOTPPage() {
   return (
     <AuthLayout
       title="Verify your email"
-      subtitle={`We've sent a 6-digit code to ${email}`}
+      subtitle={`We've sent a 6-digit code to ${email || 'your inbox'}`}
     >
       <form onSubmit={handleVerify} className="space-y-6">
         <div className="space-y-4">
@@ -84,19 +84,16 @@ export default function PasswordVerifyOTPPage() {
               placeholder="000000"
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-              className="text-center text-3xl tracking-[0.5em] font-mono h-16 border-2 focus:border-emerald-500 focus:ring-emerald-500"
+              className="text-center text-3xl tracking-[0.5em] font-mono h-16 border-2 focus:border-emerald-500"
               required
               autoFocus
             />
-            <p className="text-center text-sm text-slate-500">
-              Enter the code sent to your inbox
-            </p>
           </div>
         </div>
 
         <Button
           type="submit"
-          className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white text-lg font-medium transition-all"
+          className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white"
           disabled={isLoading || otp.length < 6}
         >
           {isLoading ? (
@@ -112,7 +109,7 @@ export default function PasswordVerifyOTPPage() {
         <div className="text-center">
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() => router.push("/auth/forgot-password")}
             className="text-sm text-slate-600 hover:text-slate-900 hover:underline"
           >
             Change email address
@@ -120,5 +117,20 @@ export default function PasswordVerifyOTPPage() {
         </div>
       </form>
     </AuthLayout>
+  );
+}
+
+// 2. Main export wrapped in Suspense for Next.js build optimization
+export default function VerifyPage() {
+  return (
+    <Suspense 
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-white">
+          <Loader2 className="animate-spin h-8 w-8 text-emerald-500" />
+        </div>
+      }
+    >
+      <VerifyOTPForm />
+    </Suspense>
   );
 }
