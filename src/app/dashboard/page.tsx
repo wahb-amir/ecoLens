@@ -283,49 +283,44 @@ export default function UpscaledDashboard() {
         body: JSON.stringify({ dataUrl: base64Image }),
       });
 
-      // parse safely
       let data: any = null;
       try {
         data = await res.json();
       } catch (parseErr) {
-        console.error(
-          "Failed to parse /api/predict response as JSON",
-          parseErr,
-        );
         throw new Error("Unexpected server response.");
       }
 
       if (!res.ok) {
-        // server responded with an error payload
         throw new Error(data?.message || "Failed to process image.");
       }
 
+      // --- The Fix: Handle "No Match" or "No Waste" specifically ---
       if (data?.noMatch) {
         setPredictions(null);
         setError({
-          title: "—No confident match —",
-          message: "Try a different angle or clearer photo.",
+          // If the backend said "No waste detected", show a cleaner title
+          title:
+            data.message === "No waste detected"
+              ? "Nothing to Recycle"
+              : "Match Unclear",
+          message: data.message || "Try a different angle or clearer photo.",
         });
-        return;
+        return; // Exit early so we don't refresh stats or show success
       }
 
-      // Normal success path
+      // Normal success path (only happens if it's actual waste)
       setPredictions(data.predictions ?? null);
 
-      // Only refresh stats when we actually created a scan / returned valid match
       try {
         await refreshStats();
       } catch (e) {
-        // non-fatal: stats refresh failed but prediction succeeded
         console.warn("refreshStats failed:", e);
       }
     } catch (err: any) {
       console.error("processImage error:", err);
       setError({
         title: "Analysis Failed",
-        message:
-          err?.message ||
-          "Our neural net encountered a glitch. Please try again.",
+        message: err?.message || "Our neural net encountered a glitch.",
       });
     } finally {
       setIsUploading(false);
@@ -472,13 +467,14 @@ export default function UpscaledDashboard() {
               {/* Center Status / Errors */}
               <div className="flex-1 flex flex-col items-center justify-center text-center">
                 <AnimatePresence mode="wait">
-                  {error ? (
+                  {/* 1. ACTUAL ERROR (System/Technical Failure) */}
+                  {error && error.title !== "Nothing to Recycle" ? (
                     <motion.div
                       key="error"
                       initial={{ scale: 0.9, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       exit={{ scale: 0.9, opacity: 0 }}
-                      className="bg-red-500/90 backdrop-blur-md p-6 rounded-3xl w-full max-w-[85%] shadow-2xl border border-red-400"
+                      className="bg-red-500/95 backdrop-blur-md p-6 rounded-3xl w-full max-w-[85%] shadow-2xl border border-red-400"
                     >
                       <AlertCircle className="w-10 h-10 text-white mx-auto mb-3" />
                       <h3 className="text-white font-bold mb-1">
@@ -487,50 +483,101 @@ export default function UpscaledDashboard() {
                       <p className="text-red-100 text-sm mb-4">
                         {error.message}
                       </p>
-                      <Button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="bg-white text-red-600 w-full rounded-xl hover:bg-red-50"
-                      >
-                        <ImageIcon className="w-4 h-4 mr-2" /> Upload Photo
-                      </Button>
+                      <div className="flex flex-col gap-2">
+                        <Button
+                          onClick={startCamera}
+                          className="bg-white text-red-600 w-full rounded-xl hover:bg-red-50"
+                        >
+                          <RefreshCcw className="w-4 h-4 mr-2" /> Try Camera
+                          Again
+                        </Button>
+                        <Button
+                          onClick={() => fileInputRef.current?.click()}
+                          variant="ghost"
+                          className="text-white hover:bg-white/10"
+                        >
+                          <ImageIcon className="w-4 h-4 mr-2" /> Upload Instead
+                        </Button>
+                      </div>
                     </motion.div>
-                  ) : isUploading ? (
+                  ) : /* 2. NO WASTE DETECTED (Clean Scene) */
+                  error && error.title === "Nothing to Recycle" ? (
                     <motion.div
-                      key="uploading"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="bg-black/60 backdrop-blur-md p-6 rounded-3xl shadow-2xl"
+                      key="no-waste"
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      className="bg-slate-900/90 backdrop-blur-xl p-6 rounded-3xl w-full max-w-[85%] shadow-2xl border border-slate-700 text-center"
                     >
-                      <Aperture className="w-12 h-12 text-emerald-400 animate-spin mx-auto mb-4" />
-                      <p className="text-white font-bold tracking-wider">
-                        Analyzing Material...
-                      </p>
-                    </motion.div>
-                  ) : predictions ? (
-                    <motion.div
-                      key="result"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="bg-white/95 backdrop-blur-md p-6 rounded-3xl w-full shadow-2xl border-b-4 border-emerald-500 text-slate-900"
-                    >
-                      <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-2" />
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">
-                        Identified
-                      </p>
-                      <h3 className="text-xl font-black mb-1">
-                        {predictions[0].label}
+                      <div className="relative mx-auto mb-4 w-16 h-16">
+                        <div className="absolute inset-0 bg-indigo-500/20 rounded-full animate-ping" />
+                        <div className="relative bg-indigo-500 p-4 rounded-full">
+                          <Globe2 className="w-8 h-8 text-white" />
+                        </div>
+                      </div>
+                      <h3 className="text-white font-bold text-lg mb-1">
+                        Clear Horizon!
                       </h3>
-                      <p className="text-emerald-600 font-bold text-sm mb-4">
-                        {(predictions[0].prob * 100).toFixed(2)}% Match
+                      <p className="text-slate-300 text-sm mb-6 leading-relaxed">
+                        {error.message}
                       </p>
                       <Button
                         onClick={resetScanner}
-                        className="w-full bg-slate-900 text-white rounded-xl hover:bg-slate-800"
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl border-b-4 border-indigo-800 active:border-b-0 transition-all"
                       >
-                        Scan Another
+                        Scan Again
+                      </Button>
+                    </motion.div>
+                  ) : /* 3. UPLOADING / ANALYZING */
+                  isUploading ? (
+                    <motion.div
+                      key="uploading"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="bg-black/60 backdrop-blur-md p-8 rounded-full shadow-2xl border border-white/10"
+                    >
+                      <div className="relative">
+                        <Aperture className="w-16 h-16 text-emerald-400 animate-spin" />
+                        <div className="absolute inset-0 blur-xl bg-emerald-500/30 animate-pulse" />
+                      </div>
+                    </motion.div>
+                  ) : /* 4. SUCCESSFUL IDENTIFICATION */
+                  predictions ? (
+                    <motion.div
+                      key="result"
+                      initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      className="bg-white/95 backdrop-blur-md p-6 rounded-[2.5rem] w-full shadow-2xl border-b-[6px] border-emerald-500 text-slate-900"
+                    >
+                      <div className="bg-emerald-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+                      </div>
+                      <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] mb-1">
+                        Material Classified
+                      </p>
+                      <h3 className="text-2xl font-black mb-1 capitalize">
+                        {predictions[0].label.replace("_", " ")}
+                      </h3>
+                      <div className="flex items-center justify-center gap-2 mb-6">
+                        <div className="h-1.5 w-12 bg-slate-100 rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${predictions[0].prob * 100}%` }}
+                            className="h-full bg-emerald-500"
+                          />
+                        </div>
+                        <p className="text-slate-500 font-bold text-xs">
+                          {(predictions[0].prob * 100).toFixed(0)}% Certainty
+                        </p>
+                      </div>
+                      <Button
+                        onClick={resetScanner}
+                        className="w-full h-12 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 font-bold"
+                      >
+                        Confirm & Continue
                       </Button>
                     </motion.div>
                   ) : (
+                    /* 5. IDLE STATE */
                     !isCameraActive &&
                     !isStartingCamera &&
                     !preview && (
@@ -540,15 +587,17 @@ export default function UpscaledDashboard() {
                         animate={{ opacity: 1 }}
                         className="space-y-6"
                       >
-                        <div className="bg-white/10 p-6 rounded-full inline-block backdrop-blur-md border border-white/20">
-                          <Camera className="w-12 h-12 text-white" />
+                        <div className="relative inline-block">
+                          <div className="absolute inset-0 bg-white/20 blur-2xl rounded-full" />
+                          <div className="relative bg-white/10 p-8 rounded-full backdrop-blur-md border border-white/20">
+                            <Camera className="w-14 h-14 text-white" />
+                          </div>
                         </div>
-                        <h2 className="text-2xl font-bold text-white">
+                        <h2 className="text-2xl font-bold text-white tracking-tight">
                           Neural Lens Ready
                         </h2>
-                        <p className="text-slate-300 text-sm max-w-[200px] mx-auto">
-                          Point your camera at any waste material to classify it
-                          instantly.
+                        <p className="text-slate-300 text-sm max-w-[220px] mx-auto leading-relaxed">
+                          Classify your waste and earn EcoPoints instantly.
                         </p>
                       </motion.div>
                     )

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -13,11 +13,14 @@ import type { EcoStats } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
   CheckCircle2,
-  Lock,
   ShieldCheck,
   Zap,
   Trophy,
   Target,
+  ChevronDown,
+  Activity,
+  Filter,
+  RefreshCw,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import Balancer from "react-wrap-balancer";
@@ -26,26 +29,22 @@ import { motion, AnimatePresence } from "framer-motion";
 interface AchievementsProps {
   stats?: EcoStats | null;
 }
-/**
- * ACHIEVEMENT CARD COMPONENT
- * Extracted for performance and cleaner reconciliation.
- */
+
 const AchievementCard = ({
   ach,
   stats,
   index,
+  isExpanded,
+  onToggle,
 }: {
   ach: any;
   stats?: EcoStats | null;
   index: number;
+  isExpanded: boolean;
+  onToggle: () => void;
 }) => {
-  
-  // Determine unlocked status safely:
   const unlocked = useMemo(() => {
-    // First, prefer explicit unlockedAchievements list on stats (fast)
     if (stats?.unlockedAchievements?.includes?.(ach.id)) return true;
-
-    // Only call the achievement's isUnlocked when stats exists (avoid throwing)
     if (stats && typeof ach.isUnlocked === "function") {
       try {
         return Boolean(ach.isUnlocked(stats));
@@ -53,26 +52,17 @@ const AchievementCard = ({
         return false;
       }
     }
-
     return false;
   }, [stats?.unlockedAchievements, ach]);
 
-  // Safe progress: only call getAchievementProgress when stats exist,
-  // otherwise supply a safe default object so the UI can render without checks.
   const progress = useMemo(() => {
-    if (!stats) {
-      return { current: 0, target: 0, percentage: 0 };
-    }
+    if (!stats) return { current: 0, target: 0, percentage: 0 };
     try {
       const p = getAchievementProgress(ach, stats);
-      // normalize shape and guard against NaN/undefined fields
       return {
         current: Number(p?.current ?? 0),
         target: Number(p?.target ?? 0),
-        percentage:
-          typeof p?.percentage === "number" && Number.isFinite(p.percentage)
-            ? Math.max(0, Math.min(100, p.percentage))
-            : 0,
+        percentage: Math.max(0, Math.min(100, p?.percentage ?? 0)),
       };
     } catch {
       return { current: 0, target: 0, percentage: 0 };
@@ -84,113 +74,114 @@ const AchievementCard = ({
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 15 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{
-        duration: 0.4,
-        delay: index * 0.03,
-        ease: [0.23, 1, 0.32, 1],
-      }}
-      whileHover={{ y: -4 }}
-      className="h-full"
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.3, delay: index * 0.02 }}
     >
       <Card
+        onClick={onToggle}
         className={cn(
-          "group relative flex flex-col h-full transition-all duration-500 border-0 overflow-hidden",
-          unlocked
-            ? "bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-emerald-500/20"
-            : "bg-slate-50/50 ring-1 ring-slate-200/60 opacity-90",
+          "group relative transition-all duration-300 border border-slate-200 shadow-sm cursor-pointer overflow-hidden",
+          unlocked ? "bg-white ring-1 ring-emerald-500/10" : "bg-slate-50/50",
+          isExpanded && "ring-2 ring-emerald-500 shadow-md",
         )}
       >
-        {/* Subtle Gradient Background for Unlocked Items */}
-        {unlocked && (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.05),transparent_50%)]" />
-        )}
-
-        <div className="absolute top-3 right-4 pointer-events-none select-none">
-          <span className="text-[10px] font-mono font-bold tracking-widest text-slate-300 group-hover:text-slate-400 transition-colors">
-            {String(ach.id).replace("ACH_", "").toUpperCase()}
-          </span>
-        </div>
-
-        <CardHeader className="relative flex-row items-center gap-5 space-y-0 pb-4 pt-6">
-          {/* Hexagonal / Rounded Icon Shield */}
+        <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4 pt-5">
           <div
             className={cn(
-              "relative flex items-center justify-center w-14 h-14 rounded-2xl transition-all duration-700 shadow-inner",
+              "flex items-center justify-center w-12 h-12 rounded-xl border transition-all duration-500",
               unlocked
-                ? "bg-emerald-600 text-white rotate-0 scale-110"
-                : "bg-slate-200 text-slate-400 -rotate-6 scale-100",
+                ? "bg-emerald-50 border-emerald-100 text-emerald-600"
+                : "bg-white border-slate-200 text-slate-400",
             )}
           >
-            <Icon className={cn("w-7 h-7", unlocked && "animate-pulse-slow")} />
-
-            {unlocked && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 shadow-sm"
-              >
-                <CheckCircle2 className="w-5 h-5 text-emerald-500 fill-emerald-50" />
-              </motion.div>
-            )}
+            <Icon className={cn("w-6 h-6", unlocked && "animate-pulse")} />
           </div>
 
-          <div className="flex-1 space-y-1">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                #{String(ach.id).slice(-3)}
+              </span>
+              <motion.div animate={{ rotate: isExpanded ? 180 : 0 }}>
+                <ChevronDown className="w-4 h-4 text-slate-300" />
+              </motion.div>
+            </div>
             <CardTitle
               className={cn(
-                "text-base font-bold tracking-tight",
+                "text-sm font-bold truncate",
                 unlocked ? "text-slate-900" : "text-slate-500",
               )}
             >
               {ach.name}
             </CardTitle>
-            <CardDescription className="text-xs leading-snug font-medium text-slate-400 line-clamp-2">
-              {ach.description}
-            </CardDescription>
           </div>
         </CardHeader>
 
-        <CardContent className="relative flex-grow flex flex-col justify-end pb-6">
-          {!unlocked && progress && progress.target > 0 ? (
-            <div className="w-full space-y-3">
-              <div className="flex justify-between items-end">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter flex items-center gap-1">
-                    <Target className="w-3 h-3" /> Progress
-                  </span>
-                  <span className="text-xs font-black text-slate-700 font-mono">
-                    {(progress.current ?? 0).toLocaleString()}{" "}
-                    <span className="text-slate-300">/</span>{" "}
-                    {(progress.target ?? 0).toLocaleString()}
-                  </span>
-                </div>
-                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                  {Math.round(progress?.percentage ?? 0)}%
+        <CardContent className="pb-5">
+          {!unlocked ? (
+            <div className="space-y-2">
+              <div className="flex justify-between text-[10px] font-bold font-mono">
+                <span className="text-slate-400">PROGRESS</span>
+                <span className="text-emerald-600">
+                  {Math.round(progress.percentage)}%
                 </span>
               </div>
-              <div className="relative h-1.5 w-full bg-slate-200/50 rounded-full overflow-hidden shadow-inner">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress?.percentage ?? 0}%` }}
-                  transition={{ duration: 1, ease: "easeOut" }}
-                  className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full"
-                />
-              </div>
+              <Progress
+                value={progress.percentage}
+                className="h-1 bg-slate-200"
+              />
             </div>
           ) : (
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100/60">
-              <div className="flex items-center gap-2 text-emerald-600/80">
-                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] font-bold uppercase tracking-widest">
-                  Authenticated
-                </span>
-              </div>
-              <div className="p-1 rounded bg-slate-50 border border-slate-100">
-                <ShieldCheck className="w-3 h-3 text-slate-400" />
-              </div>
+            <div className="flex items-center gap-2 text-emerald-600">
+              <CheckCircle2 className="w-4 h-4" />
+              <span className="text-[10px] font-black uppercase tracking-widest">
+                Authenticated
+              </span>
             </div>
           )}
+
+          <AnimatePresence>
+            {isExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="pt-4 mt-4 border-t border-slate-100 space-y-3">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">
+                      Mission Briefing
+                    </p>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {ach.description}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase">
+                        Status
+                      </p>
+                      <p className="text-[11px] font-bold text-slate-700">
+                        {unlocked ? "Verified" : "Active"}
+                      </p>
+                    </div>
+                    <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase">
+                        Impact
+                      </p>
+                      <p className="text-[11px] font-bold text-emerald-600">
+                        +{ach.points || 50} XP
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </CardContent>
       </Card>
     </motion.div>
@@ -198,95 +189,116 @@ const AchievementCard = ({
 };
 
 export function Achievements({ stats }: AchievementsProps) {
-  // Memoize summary to prevent recalculations and guard when stats missing
-  const summary = useMemo(() => {
-    if (!stats) {
-      return {
-        unlocked: 0,
-        total: achievements.length,
-        percentage: 0,
-      };
-    }
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "unlocked" | "locked">("all");
+  const [isScanning, setIsScanning] = useState(false);
 
-    const unlockedCount = achievements.filter((a) => {
-      // prefer explicit unlockedAchievements list, fallback to function if present
-      if (stats.unlockedAchievements?.includes?.(a.id)) return true;
-      if (typeof a.isUnlocked === "function") {
-        try {
-          return Boolean(a.isUnlocked(stats));
-        } catch {
-          return false;
-        }
-      }
-      return false;
-    }).length;
+  const handleScan = () => {
+    setIsScanning(true);
+    setTimeout(() => setIsScanning(false), 1500);
+  };
 
-    return {
-      unlocked: unlockedCount,
-      total: achievements.length,
-      percentage: (unlockedCount / achievements.length) * 100,
-    };
-  }, [stats]);
+  const filteredAchievements = useMemo(() => {
+    return achievements.filter((ach) => {
+      const isUnlocked = stats?.unlockedAchievements?.includes(ach.id);
+      if (filter === "unlocked") return isUnlocked;
+      if (filter === "locked") return !isUnlocked;
+      return true;
+    });
+  }, [stats, filter]);
 
   return (
-    <div className="space-y-12 max-w-7xl mx-auto px-4 md:px-0 py-8">
-      {/* 1. Executive Summary Header */}
-      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 pb-4">
-        <div className="space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100">
-            <Zap className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600/20" />
-            <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-widest">
-              Achievement System Active
-            </span>
+    <div className="bg-slate-50/30 min-h-screen pb-20">
+      <div className="max-w-6xl mx-auto px-4 py-12 space-y-8">
+        {/* Header Section */}
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700">
+              <Activity className="w-3.5 h-3.5" />
+              <span className="text-[11px] font-bold uppercase tracking-widest">
+                Protocol Active
+              </span>
+            </div>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">
+              Eco Badges
+            </h1>
+            <p className="text-slate-500 text-sm max-w-md font-medium">
+              Track your environmental milestones and protocol achievements.
+            </p>
           </div>
-          <h1 className="text-5xl font-extrabold tracking-tighter text-slate-900 lg:text-6xl">
-            Protocol Status
-          </h1>
-          <p className="text-slate-500 max-w-lg font-medium text-lg leading-relaxed">
-            <Balancer>
-              Your environmental impact is quantified through our global
-              classification system. Unlock performance badges to increase your
-              standing.
-            </Balancer>
-          </p>
+
+          <div className="flex items-center gap-3">
+            {/* Filter Tabs - GREAT FOR VIDEO FILLER */}
+            <div className="flex bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
+              {(["all", "unlocked", "locked"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={cn(
+                    "px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition-all",
+                    filter === f
+                      ? "bg-slate-900 text-white shadow-md"
+                      : "text-slate-400 hover:text-slate-600",
+                  )}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+
+            {/* Scan Button - GREAT FOR VIDEO FILLER */}
+            <button
+              onClick={handleScan}
+              className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
+            >
+              <RefreshCw
+                className={cn(
+                  "w-4 h-4 text-slate-600",
+                  isScanning && "animate-spin",
+                )}
+              />
+            </button>
+          </div>
+        </header>
+
+        {/* Global Progress Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-amber-50 rounded-xl">
+              <Trophy className="w-6 h-6 text-amber-500" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                Global Rank
+              </p>
+              <p className="text-xl font-black text-slate-900">
+                Elite Guardian
+              </p>
+            </div>
+          </div>
+          {/* Add more stats here to fill space if needed */}
         </div>
 
-        {/* Global Progress Widget */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 min-w-[280px]">
-          <div className="flex justify-between items-center mb-4">
-            <div className="p-2 bg-amber-50 rounded-xl">
-              <Trophy className="w-5 h-5 text-amber-500" />
-            </div>
-            <div className="text-right">
-              <p className="text-2xl font-black text-slate-900">
-                {summary.unlocked}/{summary.total}
-              </p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                Badges Unlocked
-              </p>
-            </div>
-          </div>
-          <Progress value={summary.percentage} className="h-2 bg-slate-100" />
-          <p className="mt-3 text-[11px] text-center font-bold text-slate-400 italic font-mono">
-            {summary.percentage === 100
-              ? "PREMIUM_USER_VERIFIED"
-              : "SYSTEM_UPGRADE_IN_PROGRESS"}
-          </p>
-        </div>
-      </header>
-
-      {/* 2. Achievement Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-        <AnimatePresence mode="popLayout">
-          {achievements.map((ach, index) => (
-            <AchievementCard
-              key={ach.id}
-              ach={ach}
-              stats={stats}
-              index={index}
-            />
-          ))}
-        </AnimatePresence>
+        {/* Achievements Grid */}
+        <motion.div
+          layout
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+        >
+          <AnimatePresence mode="popLayout">
+            {filteredAchievements.map((ach, index) => (
+              <AchievementCard
+                key={ach.id}
+                ach={ach}
+                stats={stats}
+                index={index}
+                isExpanded={expandedId === ach.id}
+                onToggle={() =>
+                  setExpandedId(expandedId === ach.id ? null : ach.id)
+                }
+              />
+            ))}
+          </AnimatePresence>
+        </motion.div>
       </div>
     </div>
   );

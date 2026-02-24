@@ -42,20 +42,25 @@ const calculateStreak = (
 };
 
 // NEW: treat unknown/mixed as no-match
+// --- Updated Helper ---
 const isNoMatchLabel = (label?: string | null): boolean => {
   if (!label) return true;
   const l = label.toString().trim().toLowerCase();
   if (!l) return true;
-  // handle exact and slash variants and simple contains
-  if (l === "unknown" || l === "mixed") return true;
+
+  // Added "no_waste" and "no-waste" to the exclusion list
+  const invalidLabels = ["unknown", "mixed", "no_waste", "no-waste", "none"];
+  
+  if (invalidLabels.includes(l)) return true;
   if (l.includes("unknown/mixed") || l.includes("mixed/unknown")) return true;
-  // also protect simple contain case (e.g. "unknown - something")
-  if (/\b(unknown|mixed)\b/.test(l) && !/\b(plastic|paper|glass|metal|food|organic|cardboard|aluminum|can)\b/.test(l)) {
+
+  // Protect simple contain case, ensuring no actual waste categories are present
+  if (/\b(unknown|mixed|no_waste)\b/.test(l) && 
+      !/\b(plastic|paper|glass|metal|food|organic|cardboard|aluminum|can)\b/.test(l)) {
     return true;
   }
   return false;
 };
-
 export async function POST(req: Request) {
   try {
     await connectToDb();
