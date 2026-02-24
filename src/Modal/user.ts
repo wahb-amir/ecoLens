@@ -28,6 +28,10 @@ export interface IUser {
   lastScanDate?: Date;
   categoryStats: ICategoryStats;
   achievements: IAchievement[];
+  resetOtp?: string | null;
+  resetOtpExpiry?: Date | null;
+  resetToken?: string | null; // For the final password change step
+  resetTokenExpiry?: Date;
 }
 
 // 2. Methods Interface (The "Behavior")
@@ -37,25 +41,29 @@ export interface IUserMethods {
 
 // 3. The "Hydrated Document" Type
 // This combines the data, the methods, and Mongoose's Document properties
-export type UserDocument = Document<unknown, {}, IUser> & IUser & IUserMethods & {
-  _id: Types.ObjectId;
-};
+export type UserDocument = Document<unknown, {}, IUser> &
+  IUser &
+  IUserMethods & {
+    _id: Types.ObjectId;
+  };
 
 // 4. Schema Definition
 // Notice the Generics: <Data, Model, Methods>
-const userSchema = new Schema<IUser, Model<IUser, any, IUserMethods>, IUserMethods>(
+const userSchema = new Schema<
+  IUser,
+  Model<IUser, any, IUserMethods>,
+  IUserMethods
+>(
   {
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true, index: true },
     password: { type: String, required: true, select: false },
     isVerified: { type: Boolean, default: false },
     verifyToken: { type: String },
-    tokens: [
-      {
-        token: { type: String, required: true },
-        createdAt: { type: Date, default: Date.now },
-      },
-    ],
+    resetOtp: { type: String, default: null, select: false },
+    resetOtpExpiry: { type: Date, default: null, select: false },
+    resetToken: { type: String, default: null, select: false },
+    resetTokenExpiry: { type: Date, select: false },
     ecoScore: { type: Number, default: 0, index: true },
     totalScans: { type: Number, default: 0 },
     streak: { type: Number, default: 0 },
@@ -75,24 +83,28 @@ const userSchema = new Schema<IUser, Model<IUser, any, IUserMethods>, IUserMetho
       },
     ],
   },
-  { 
+  {
     timestamps: true,
     toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-  }
+    toObject: { virtuals: true },
+  },
 );
 
 // 5. Implementing the Method
-userSchema.methods.updateStreak = async function(this: UserDocument) {
+userSchema.methods.updateStreak = async function (this: UserDocument) {
   const now = new Date();
-  
+
   if (!this.lastScanDate) {
     this.streak = 1;
   } else {
     const lastDate = new Date(this.lastScanDate);
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const lastScanDay = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
-    
+    const lastScanDay = new Date(
+      lastDate.getFullYear(),
+      lastDate.getMonth(),
+      lastDate.getDate(),
+    );
+
     const diffTime = today.getTime() - lastScanDay.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
@@ -100,7 +112,7 @@ userSchema.methods.updateStreak = async function(this: UserDocument) {
       this.streak += 1;
     } else if (diffDays > 1) {
       this.streak = 1;
-    } 
+    }
     // If diffDays === 0, it's the same day, we do nothing to the streak
   }
 
@@ -111,7 +123,8 @@ userSchema.methods.updateStreak = async function(this: UserDocument) {
 userSchema.index({ ecoScore: -1, totalScans: -1 });
 
 // 6. Model Export
-const User = (mongoose.models.User as Model<IUser, {}, IUserMethods>) || 
-             mongoose.model<IUser, Model<IUser, {}, IUserMethods>>("User", userSchema);
+const User =
+  (mongoose.models.User as Model<IUser, {}, IUserMethods>) ||
+  mongoose.model<IUser, Model<IUser, {}, IUserMethods>>("User", userSchema);
 
 export default User;
