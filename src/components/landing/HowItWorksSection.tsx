@@ -1,153 +1,204 @@
-'use client';
+"use client";
 
-import React from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
-import { Card, CardContent } from "@/components/ui/card";
-import { UploadCloud, Cpu, Award, BarChart, LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import React, { useRef, useState, useEffect } from "react";
+import { motion, useTransform, useInView, useMotionValue, animate } from "framer-motion";
+import { UploadCloud, Cpu, Award, BarChart, CheckCircle2 } from "lucide-react";
 
-// --- Types & Interfaces ---
-interface StepData {
-  title: string;
-  description: string;
-  iconName: string;
-}
-
-interface Step extends StepData {
-  Icon: LucideIcon;
-}
-
-// Mocking the shared data for strict TS safety
-const howItWorksSteps: StepData[] = [
-  { title: "Capture", description: "Upload a photo of your item via the EcoLens mobile interface.", iconName: "UploadCloud" },
-  { title: "Analyze", description: "Our neural network identifies materials and recycling protocols.", iconName: "Cpu" },
-  { title: "Log", description: "Data is synced to your decentralized environmental ledger.", iconName: "BarChart" },
-  { title: "Reward", description: "Earn Eco-Points redeemable for sustainable brand partner perks.", iconName: "Award" },
+const STEPS = [
+  {
+    title: "Capture",
+    desc: "AI identifies materials via mobile uplink.",
+    Icon: UploadCloud,
+  },
+  {
+    title: "Analyze",
+    desc: "Neural processing determines protocols.",
+    Icon: Cpu,
+  },
+  {
+    title: "Log",
+    desc: "Data committed to the secure ledger.",
+    Icon: BarChart,
+  },
+  { title: "Reward", desc: "Eco-Points minted to your wallet.", Icon: Award },
 ];
 
-const iconMap: Record<string, LucideIcon> = {
-  UploadCloud,
-  Cpu,
-  Award,
-  BarChart,
-};
+export default function HowItWorksSection() {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [mounted, setMounted] = useState(false);
 
-// --- Sub-Components ---
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-const ConnectionLine = () => (
-  <div className="hidden lg:block absolute top-1/2 left-0 w-full -translate-y-16 pointer-events-none z-0">
-    <svg width="100%" height="20" viewBox="0 0 1000 20" fill="none" className="opacity-20">
-      <path 
-        d="M0 10 Q 250 10 500 10 T 1000 10" 
-        stroke="url(#gradient-line)" 
-        strokeWidth="2" 
-        strokeDasharray="8 8" 
-      />
-      <defs>
-        <linearGradient id="gradient-line" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#10b981" />
-          <stop offset="100%" stopColor="#3b82f6" />
-        </linearGradient>
-      </defs>
-    </svg>
-  </div>
-);
+  const isInView = useInView(containerRef, { once: true, margin: "-15% 0px" });
+  const progress = useMotionValue(0);
 
-const StepCard = ({ step, index }: { step: Step; index: number }) => {
+  useEffect(() => {
+    if (isInView) {
+      // Snappier bottleneck: We reduced the time spent in the 'stuck' phase (0.25 to 0.45)
+      animate(progress, [0, 0.35, 0.38, 0.85, 1], {
+        duration: 4.8,
+        times: [0, 0.25, 0.45, 0.85, 1],
+        ease: ["easeOut", "linear", "circIn", "easeOut"],
+      });
+    }
+  }, [isInView, progress]);
+
+  // Spatial Transforms
+  const desktopWidth = useTransform(progress, [0, 1], ["0%", "100%"]);
+  const packetLeft = useTransform(progress, [0, 1], ["0%", "100%"]);
+  const mobileHeight = useTransform(progress, [0, 1], ["0%", "100%"]);
+
+  // Refined Pressure Transform
+  const packetScale = useTransform(
+    progress,
+    [0, 0.3, 0.35, 0.38, 0.45, 1],
+    [1, 1, 1.5, 1.7, 1, 1] 
+  );
+  
+  // Clean Eco-Tech Palette: Cyan to Emerald
+  const packetColor = useTransform(
+    progress,
+    [0, 0.4, 0.8, 1],
+    ["#06b6d4", "#2dd4bf", "#10b981", "#10b981"] 
+  );
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: index * 0.1 }}
-      viewport={{ once: true }}
-      className="relative z-10 group"
+    <motion.section
+      className="relative w-full bg-[#fcfdfe] py-32 px-6 lg:py-48 overflow-hidden"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: mounted ? 1 : 0 }}
+      transition={{ duration: 0.45 }}
     >
-      {/* Decorative Glow */}
-      <div className="absolute -inset-2 bg-gradient-to-b from-emerald-100/50 to-transparent rounded-[2.5rem] opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl" />
-      
-      <Card className="relative h-full bg-white/80 backdrop-blur-xl border-slate-200/60 shadow-sm transition-all duration-500 rounded-[2rem] overflow-hidden group-hover:border-emerald-300 group-hover:shadow-2xl group-hover:shadow-emerald-500/10 group-hover:-translate-y-2">
-        <div className="p-8">
-          {/* Icon Header */}
-          <div className="flex justify-between items-start mb-6">
-            <div className="p-4 rounded-2xl bg-slate-50 text-slate-600 group-hover:bg-emerald-500 group-hover:text-white transition-all duration-500 shadow-inner">
-              <step.Icon className="h-6 w-6" />
-            </div>
-            <span className="font-mono text-[40px] leading-none font-black text-slate-100 group-hover:text-emerald-500/10 transition-colors duration-500">
-              0{index + 1}
-            </span>
+      <div
+        className="absolute inset-0 opacity-[0.03] pointer-events-none"
+        style={{
+          backgroundImage: `radial-gradient(#0f172a 1px, transparent 1px)`,
+          backgroundSize: "40px 40px",
+        }}
+      />
+
+      <div ref={containerRef} className="max-w-7xl mx-auto relative z-10">
+        <div className="text-center mb-32">
+          <h2 className="text-5xl lg:text-7xl font-black text-slate-900 tracking-tighter">
+            The <span className="text-emerald-500 italic">Neural</span> Pipeline
+          </h2>
+        </div>
+
+        <div className="relative">
+          {/* DATA BUS - Emerald to Teal to Cyan */}
+          <div className="hidden lg:block absolute top-[4.5rem] left-[10%] right-[10%] h-[2px] z-0">
+            <div className="w-full h-full bg-slate-200/50 rounded-full" />
+            <motion.div
+              className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+              style={{ width: desktopWidth }}
+            />
+            
+            <motion.div
+              className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full shadow-2xl z-10 flex items-center justify-center"
+              style={{ 
+                left: packetLeft, 
+                scale: packetScale,
+                backgroundColor: "#ffffff",
+                border: "2px solid",
+                borderColor: packetColor
+              }}
+            >
+              <motion.div 
+                className="absolute inset-0 rounded-full animate-ping opacity-60" 
+                style={{ backgroundColor: packetColor }}
+              />
+            </motion.div>
           </div>
 
-          <h4 className="text-xl font-bold text-slate-800 mb-3 tracking-tight">
-            {step.title}
-          </h4>
-          <p className="text-slate-500 text-sm leading-relaxed font-normal">
-            {step.description}
-          </p>
-        </div>
-        
-        {/* Card Bottom Tech Accent */}
-        <div className="h-1 w-0 group-hover:w-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-700 ease-in-out" />
-      </Card>
-    </motion.div>
-  );
-};
+          {/* MOBILE VERTICAL SPINE */}
+          <div className="lg:hidden absolute left-8 top-12 bottom-12 w-[2px] z-0">
+            <div className="w-full h-full bg-slate-200/50 rounded-full" />
+            <motion.div
+              className="absolute top-0 left-0 w-full bg-gradient-to-b from-cyan-400 via-teal-400 to-emerald-500"
+              style={{ height: mobileHeight }}
+            />
+          </div>
 
-export default function HowItWorksSection() {
-  const steps: Step[] = howItWorksSteps.map((s) => ({
-    ...s,
-    Icon: iconMap[s.iconName] || UploadCloud,
-  }));
-
-  return (
-    <section className="relative w-full bg-[#fcfdfd] py-24 px-6 md:py-40 overflow-hidden">
-      {/* 1. Refined Background Texture */}
-      <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 opacity-[0.02]" 
-             style={{ backgroundImage: `radial-gradient(#065f46 0.5px, transparent 0.5px)`, backgroundSize: '30px 30px' }} />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-50/50 via-transparent to-transparent pointer-events-none" />
-      </div>
-
-      <div className="max-w-7xl mx-auto relative z-10">
-        {/* 2. Header with Text Balance */}
-        <div className="text-center mb-24">
-          <motion.span 
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            className="text-emerald-600 font-mono text-[11px] font-bold uppercase tracking-[0.4em] mb-4 block"
-          >
-            Protocol Execution
-          </motion.span>
-          <h2 className="text-4xl md:text-6xl font-extrabold text-slate-800 tracking-tight mb-6 text-balance">
-            Engineered for <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent italic">Impact.</span>
-          </h2>
-          <p className="max-w-2xl mx-auto text-lg text-slate-500 font-light leading-relaxed">
-            A four-stage neural pipeline designed to bridge the gap between 
-            visual recognition and global ecological sustainability.
-          </p>
-        </div>
-
-        {/* 3. Steps Grid */}
-        <div className="relative">
-          <ConnectionLine />
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {steps.map((step, index) => (
-              <StepCard key={step.title} step={step} index={index} />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8 relative z-10">
+            {STEPS.map((step, idx) => (
+              <NodeCard
+                key={idx}
+                step={step}
+                index={idx}
+                progress={progress}
+              />
             ))}
           </div>
         </div>
-
-        {/* 4. Technical Indicator */}
-        <motion.div 
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="mt-24 flex justify-center"
-        >
-          <div className="px-6 py-2 rounded-full border border-slate-200 bg-white shadow-sm flex items-center gap-4">
-           
-          </div>
-        </motion.div>
       </div>
-    </section>
+    </motion.section>
   );
+}
+
+function NodeCard({ step, index, progress }: { step: any; index: number; progress: any; }) {
+  const start = index * 0.25;
+  const end = (index + 1) * 0.25;
+
+  const sBig = clamp(start + 0.1);
+  const eBig = clamp(end + 0.05);
+
+  const isActiveMV = useTransform(progress, [start, sBig, end - 0.05, end], [0, 1, 1, 0]);
+  const isDoneMV = useTransform(progress, [end - 0.01, eBig], [0, 1]);
+
+  const y = useTransform(progress, [start, sBig, end, eBig], [0, -12, -12, 0]);
+  const scale = useTransform(progress, [start, sBig, end, eBig], [1, 1.03, 1.03, 1]);
+  
+  const borderColor = useTransform(progress, [start, sBig, end], ["#f1f5f9", "#06b6d4", "#e2e8f0"]);
+  const iconBg = useTransform(progress, [start, start + 0.05, end], ["#f8fafc", "#06b6d4", "#10b981"]);
+  const iconColor = useTransform(progress, [start, start + 0.05], ["#94a3b8", "#ffffff"]);
+  const barWidth = useTransform(progress, [start, end], ["0%", "100%"]);
+
+  const [active, setActive] = useState(false);
+  useEffect(() => {
+    const unsub = isActiveMV.on("change", (v: number) => setActive(v > 0.5));
+    return () => unsub();
+  }, [isActiveMV]);
+
+  return (
+    <motion.div style={{ y, scale }} className="relative flex flex-col items-center">
+      <motion.div
+        className="w-full p-8 rounded-[2.5rem] bg-white border-2 flex flex-col shadow-sm overflow-hidden relative"
+        style={{ borderColor }}
+      >
+        <motion.div
+          className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-cyan-500 to-emerald-500"
+          style={{ width: barWidth }}
+        />
+
+        <div className="flex justify-between items-start mb-8">
+          <motion.div
+            style={{ backgroundColor: iconBg, color: iconColor }}
+            className="p-4 rounded-2xl transition-colors duration-300 shadow-lg"
+          >
+            <step.Icon size={26} />
+          </motion.div>
+
+          <div className="flex flex-col items-end">
+            <span className="text-[10px] font-mono font-bold text-slate-300 tracking-tighter">
+              NODE_0{index + 1}
+            </span>
+            <motion.div style={{ opacity: isDoneMV }} className="mt-1">
+              <CheckCircle2 size={16} className="text-emerald-500" />
+            </motion.div>
+          </div>
+        </div>
+
+        <h3 className="text-2xl font-bold text-slate-800 mb-2">{step.title}</h3>
+        <p className="text-slate-500 text-sm leading-relaxed mb-6">{step.desc}</p>
+
+        
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function clamp(v: number) {
+  return Math.max(0, Math.min(1, v));
 }
