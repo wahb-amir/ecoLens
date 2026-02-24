@@ -83,62 +83,105 @@ export default function UpscaledDashboard() {
 
   // -- Camera & Hardware Logic --
   const stopCamera = useCallback(() => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((track) => track.stop());
-      videoRef.current.srcObject = null;
+    try {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach((track) => track.stop());
+        videoRef.current.srcObject = null;
+      }
+    } catch (e) {
+      // non-fatal: log and continue cleanup
+      console.warn("stopCamera: failed to stop stream", e);
     }
+
     setIsCameraActive(false);
     setIsStartingCamera(false);
   }, []);
 
   const startCamera = async () => {
+    // Ensure any previous preview/canvas is cleared so we never reuse an old image as background
     setError(null);
     setPreview(null);
     setPredictions(null);
+    if (canvasRef.current) {
+      const c = canvasRef.current;
+      const ctx = c.getContext("2d");
+      if (ctx) ctx.clearRect(0, 0, c.width, c.height);
+      c.width = 0;
+      c.height = 0;
+    }
+
+    if (
+      !navigator ||
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia
+    ) {
+      setError({
+        title: "Camera Unsupported",
+        message: "Your browser or device does not support camera access.",
+      });
+      return;
+    }
+
     setIsStartingCamera(true);
 
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Browser API not supported");
-      }
-
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode, width: { ideal: 1080 }, height: { ideal: 1920 } },
+        video: {
+          facingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
         audio: false,
       });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        // ensure the video element is ready before playing
         videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play();
+          videoRef.current?.play().catch((playErr) => {
+            console.warn("video.play() failed:", playErr);
+          });
           setIsCameraActive(true);
           setIsStartingCamera(false);
         };
+      } else {
+        // fallback if ref lost
+        setIsCameraActive(true);
+        setIsStartingCamera(false);
       }
     } catch (err: any) {
-      setIsStartingCamera(false);
-      let title = "Camera Access Failed";
-      let message = "Unable to access your device camera.";
-
-      if (err.name === "NotAllowedError") {
+      console.error("startCamera error:", err);
+      let message = "Unable to access camera.";
+      if (
+        err?.name === "NotAllowedError" ||
+        err?.name === "PermissionDeniedError"
+      ) {
         message =
-          "Camera permission was denied. Please allow access or upload a photo instead.";
-      } else if (err.name === "NotFoundError") {
-        message = "No camera hardware detected on this device.";
-      } else if (err.message === "Browser API not supported") {
+          "Camera access denied. Please allow camera permissions in your browser settings.";
+      } else if (
+        err?.name === "NotFoundError" ||
+        err?.name === "DevicesNotFoundError"
+      ) {
         message =
-          "Your browser does not support camera access. Please use file upload.";
+          "No camera device found. Please connect a camera and try again.";
+      } else if (err?.name === "NotReadableError") {
+        message = "Camera is already in use by another application.";
+      } else if (err?.message) {
+        message = err.message;
       }
 
-      setError({ title, message });
+      setError({ title: "Camera Error", message });
+      setIsStartingCamera(false);
     }
   };
 
   const toggleCamera = () => {
+    // switch facing mode and restart camera cleanly
     setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
     stopCamera();
-    setTimeout(startCamera, 300); // Brief delay to ensure tracks unmount cleanly
+    // small delay to ensure tracks are stopped
+    setTimeout(() => startCamera(), 300);
   };
 
   const captureImage = () => {
@@ -146,15 +189,58 @@ export default function UpscaledDashboard() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      // We want a high-quality 3:4 crop from the center of the video
+      const outputWidth = 600;
+      const outputHeight = 800;
+
+      canvas.width = outputWidth;
+      canvas.height = outputHeight;
       const ctx = canvas.getContext("2d");
 
       if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        // Calculate how much to crop from the sides/top to get a 3:4 ratio
+        const videoAspect = video.videoWidth / video.videoHeight || 16 / 9;
+        const targetAspect = 3 / 4;
+
+        let sWidth = 0,
+          sHeight = 0,
+          sx = 0,
+          sy = 0;
+
+        if (videoAspect > targetAspect) {
+          // Video is wider than 3:4 (standard landscape)
+          sHeight = video.videoHeight;
+          sWidth = sHeight * targetAspect;
+          sx = (video.videoWidth - sWidth) / 2;
+          sy = 0;
+        } else {
+          // Video is taller than 3:4
+          sWidth = video.videoWidth;
+          sHeight = sWidth / targetAspect;
+          sx = 0;
+          sy = (video.videoHeight - sHeight) / 2;
+        }
+
+        ctx.drawImage(
+          video,
+          sx,
+          sy,
+          sWidth,
+          sHeight,
+          0,
+          0,
+          outputWidth,
+          outputHeight,
+        );
+
+        // convert to jpeg (reasonable quality)
         const imageData = canvas.toDataURL("image/jpeg", 0.8);
+
+        // Set preview and immediately stop camera so the UI shows the captured image
         setPreview(imageData);
         stopCamera();
+
+        // send for processing
         processImage(imageData);
       }
     }
@@ -176,8 +262,10 @@ export default function UpscaledDashboard() {
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target?.result as string;
-      setPreview(result);
+      // Always clear old predictions / errors when a fresh file is chosen
+      setPredictions(null);
       setError(null);
+      setPreview(result);
       processImage(result);
     };
     reader.readAsDataURL(file);
@@ -191,32 +279,53 @@ export default function UpscaledDashboard() {
     try {
       const res = await fetchWithAuth("/api/predict", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dataUrl: base64Image }),
       });
-      const data = await res.json();
 
-      if (!res.ok) throw new Error(data.message || "Failed to process image.");
+      // parse safely
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        console.error(
+          "Failed to parse /api/predict response as JSON",
+          parseErr,
+        );
+        throw new Error("Unexpected server response.");
+      }
+
+      if (!res.ok) {
+        // server responded with an error payload
+        throw new Error(data?.message || "Failed to process image.");
+      }
 
       if (data?.noMatch) {
         setPredictions(null);
         setError({
           title: "—No confident match —",
-          message: " try a different angle or clearer photo.",
+          message: "Try a different angle or clearer photo.",
         });
         return;
       }
 
       // Normal success path
       setPredictions(data.predictions ?? null);
-      // Only refresh stats when we actually created a scan / returned valid match
-      await refreshStats();
 
-      // Trigger a stat refresh here if processing updates backend scores
-      // await refreshStats();
-    } catch (err) {
+      // Only refresh stats when we actually created a scan / returned valid match
+      try {
+        await refreshStats();
+      } catch (e) {
+        // non-fatal: stats refresh failed but prediction succeeded
+        console.warn("refreshStats failed:", e);
+      }
+    } catch (err: any) {
+      console.error("processImage error:", err);
       setError({
         title: "Analysis Failed",
-        message: "Our neural net encountered a glitch. Please try again.",
+        message:
+          err?.message ||
+          "Our neural net encountered a glitch. Please try again.",
       });
     } finally {
       setIsUploading(false);
@@ -229,6 +338,13 @@ export default function UpscaledDashboard() {
     setError(null);
     setIsUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    if (canvasRef.current) {
+      const c = canvasRef.current;
+      const ctx = c.getContext("2d");
+      if (ctx) ctx.clearRect(0, 0, c.width, c.height);
+      c.width = 0;
+      c.height = 0;
+    }
   };
 
   // Cleanup on unmount
@@ -303,9 +419,14 @@ export default function UpscaledDashboard() {
               autoPlay
               playsInline
               muted
+              // if we have a preview, hide the live video to ensure "previous images" never show as a background
               className={cn(
-                "absolute inset-0 w-full h-full object-cover transition-opacity duration-500",
-                isCameraActive ? "opacity-100" : "opacity-0",
+                "absolute inset-0 w-full h-full object-contain transition-opacity duration-500",
+                preview
+                  ? "opacity-0 pointer-events-none"
+                  : isCameraActive
+                    ? "opacity-100"
+                    : "opacity-0",
               )}
             />
 
@@ -316,7 +437,9 @@ export default function UpscaledDashboard() {
                 animate={{ opacity: 1 }}
                 src={preview}
                 alt="Captured material"
-                className="absolute inset-0 w-full h-full object-cover z-20"
+                className="absolute inset-0 w-full h-full object-contain z-20"
+                // use a unique key so React does not try to reuse an older image node
+                key={preview.slice(0, 32)}
               />
             )}
 
