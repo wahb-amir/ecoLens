@@ -10,7 +10,6 @@ import {
   UserX,
   ChevronDown,
   X,
-  Medal,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
@@ -18,7 +17,6 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/app/providers/AuthProvider";
 import { useRouter } from "next/navigation";
 
-// Performance: Memoize Avatar to prevent re-renders during list filtering
 const Avatar = memo(
   ({
     seed,
@@ -34,10 +32,8 @@ const Avatar = memo(
     return (
       <div
         className={cn(
-          "flex items-center justify-center rounded-full shadow-inner font-bold shrink-0",
-          large
-            ? "h-16 w-16 md:h-24 md:w-24 text-xl md:text-2xl"
-            : "h-10 w-10 text-sm",
+          "flex items-center justify-center rounded-full shadow-inner font-bold shrink-0 transition-transform duration-500",
+          large ? "h-16 w-16 md:h-20 md:w-20 text-xl" : "h-10 w-10 text-sm",
           "bg-gradient-to-br from-slate-100 to-slate-200 text-slate-700 border-2 border-white",
           className,
         )}
@@ -101,7 +97,8 @@ export default function EcoLeaderboard() {
   }, [leaderboard, debounced, sortBy]);
 
   const isSearching = debounced.length > 0;
-  // Reorder for visual podium: [2nd, 1st, 3rd]
+
+  // Podium Order: 2nd, 1st, 3rd
   const topThree = useMemo(() => {
     if (isSearching || filtered.length < 3) return [];
     const top = filtered.slice(0, 3);
@@ -112,16 +109,12 @@ export default function EcoLeaderboard() {
 
   if (isError)
     return (
-      <div className="p-8 flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <div className="bg-rose-50 p-4 rounded-full mb-4">
-          <UserX className="h-8 w-8 text-rose-500" />
-        </div>
-        <h2 className="text-xl font-bold text-slate-900">
-          Failed to load rankings
-        </h2>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6">
+        <UserX className="h-12 w-12 text-rose-500 mb-4" />
+        <h2 className="text-xl font-bold text-slate-900">Connection error</h2>
         <button
           onClick={() => window.location.reload()}
-          className="mt-4 bg-slate-900 text-white px-6 py-2 rounded-full font-medium"
+          className="mt-4 bg-slate-900 text-white px-8 py-2 rounded-full font-medium"
         >
           Retry
         </button>
@@ -129,54 +122,50 @@ export default function EcoLeaderboard() {
     );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-32">
-      {/* Header - Fixed responsiveness */}
-      <div className="bg-white border-b border-slate-100">
+    <div className="min-h-screen bg-slate-50 overflow-x-hidden">
+      {/* Header Container */}
+      <div className="bg-white border-b border-slate-100 w-full">
         <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
-          <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+          <header className="flex flex-col md:flex-row items-center md:items-end justify-between gap-6 text-center md:text-left">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wider">
-                <Trophy className="w-3 h-3" /> Live Rankings
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider mx-auto md:mx-0">
+                <Trophy className="w-3 h-3" /> Live Standings
               </div>
               <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight">
                 Eco Heroes
               </h1>
-              <p className="text-slate-500 max-w-md">
-                The top contributors fighting for a greener planet through
-                consistent action.
+              <p className="text-slate-500 text-sm md:text-base max-w-sm">
+                The world's top contributors making a real impact.
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
-              <div className="relative w-full sm:w-72">
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+              <div className="relative w-full sm:w-64">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Find a contributor..."
-                  className="w-full pl-11 pr-10 py-3 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                  placeholder="Search..."
+                  className="w-full pl-11 pr-10 py-3 rounded-2xl bg-slate-50 border-none focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm transition-all"
                 />
               </div>
               <button
                 onClick={() =>
                   setSortBy((prev) => (prev === "score" ? "scans" : "score"))
                 }
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-white border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-white border border-slate-200 font-bold text-slate-700 text-sm hover:bg-slate-50 transition-colors"
               >
-                <span className="text-xs text-slate-400 uppercase">
-                  Sort by
-                </span>
-                {sortBy === "score" ? "Points" : "Scans"}
+                Sort: {sortBy === "score" ? "Points" : "Scans"}
               </button>
             </div>
           </header>
         </div>
       </div>
 
-      <main className="max-w-5xl mx-auto px-4 -mt-8">
-        {/* Winning Stage (Podium) */}
+      <main className="max-w-5xl mx-auto px-4 pb-40">
+        {/* Podium Section - Perfectly Centered */}
         {!isSearching && topThree.length === 3 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-0 items-end mb-12">
+          <div className="flex flex-col md:flex-row items-center md:items-end justify-center gap-4 md:gap-2 mt-12 mb-16">
             {topThree.map((p, idx) => {
               const isFirst = p.rank === 1;
               const isSecond = p.rank === 2;
@@ -189,62 +178,68 @@ export default function EcoLeaderboard() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.1 }}
                   className={cn(
-                    "relative flex flex-col items-center group",
+                    "w-full max-w-[280px] md:max-w-none md:flex-1 relative group",
                     isFirst
-                      ? "z-20 order-1 md:order-2"
+                      ? "z-10 order-1 md:order-2"
                       : isSecond
                         ? "order-2 md:order-1"
                         : "order-3",
                   )}
                 >
-                  {/* Podium Base */}
                   <div
                     className={cn(
-                      "w-full bg-white rounded-3xl p-6 shadow-xl border border-slate-100 flex flex-col items-center transition-transform group-hover:scale-[1.02]",
+                      "bg-white rounded-[2rem] p-5 shadow-xl border border-slate-100 flex flex-col items-center relative transition-all duration-300 group-hover:translate-y-[-4px]",
                       isFirst
-                        ? "md:h-80 border-b-8 border-b-amber-400 pt-12"
-                        : "md:h-64 mt-4 border-b-8",
-                      isSecond
-                        ? "border-b-slate-300"
-                        : isThird
-                          ? "border-b-amber-700/50"
-                          : "",
+                        ? "md:min-h-[320px] pt-10 ring-2 ring-emerald-100"
+                        : "md:min-h-[260px] md:opacity-90",
                     )}
                   >
-                    {/* Trophy Icon */}
+                    {/* Rank Badge / Trophy */}
                     <div
                       className={cn(
-                        "absolute -top-6 p-4 rounded-2xl shadow-lg",
+                        "absolute -top-5 p-3 rounded-xl shadow-lg transition-transform group-hover:scale-110",
                         isFirst
-                          ? "bg-amber-400 text-white animate-bounce-slow"
+                          ? "bg-amber-400 text-amber-900"
                           : isSecond
-                            ? "bg-slate-300 text-slate-600"
-                            : "bg-amber-700 text-amber-50",
+                            ? "bg-slate-300 text-slate-700"
+                            : "bg-orange-700 text-orange-50",
                       )}
                     >
-                      <Trophy className={isFirst ? "w-8 h-8" : "w-6 h-6"} />
+                      <Trophy className={isFirst ? "w-6 h-6" : "w-5 h-5"} />
                     </div>
 
                     <Avatar
                       seed={p.name}
                       large={isFirst}
-                      className={isFirst ? "ring-4 ring-amber-100" : ""}
+                      className={isFirst ? "ring-4 ring-amber-400/20" : ""}
                     />
 
-                    <div className="mt-4 text-center">
-                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">
+                    <div className="mt-4 text-center w-full">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
                         Rank {p.rank}
-                      </p>
-                      <h3 className="font-bold text-slate-900 truncate max-w-[150px]">
+                      </span>
+                      <h3 className="font-bold text-slate-900 truncate px-2">
                         {p.isCurrentUser ? "You" : p.name}
                       </h3>
-                      <div className="mt-2 text-2xl font-black text-slate-900">
+                      <div className="mt-1 text-2xl font-black text-slate-900 tracking-tight">
                         {p.ecoScore.toLocaleString()}
                       </div>
-                      <p className="text-xs text-emerald-600 font-medium">
-                        {p.totalScans} total scans
+                      <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">
+                        {p.totalScans} Scans
                       </p>
                     </div>
+
+                    {/* Visual Stage Footer */}
+                    <div
+                      className={cn(
+                        "absolute bottom-0 left-0 right-0 h-2 rounded-b-[2rem]",
+                        isFirst
+                          ? "bg-amber-400"
+                          : isSecond
+                            ? "bg-slate-300"
+                            : "bg-orange-700",
+                      )}
+                    />
                   </div>
                 </motion.div>
               );
@@ -252,22 +247,22 @@ export default function EcoLeaderboard() {
           </div>
         )}
 
-        {/* List View */}
-        <section className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+        {/* List View Container */}
+        <section className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden w-full">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[500px]">
               <thead>
-                <tr className="border-b border-slate-50">
-                  <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    Rank
+                <tr className="bg-slate-50/50">
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    #
                   </th>
-                  <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    Contributor
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    Hero
                   </th>
-                  <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">
                     Points
                   </th>
-                  <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">
                     Trend
                   </th>
                 </tr>
@@ -283,11 +278,11 @@ export default function EcoLeaderboard() {
                       exit={{ opacity: 0 }}
                       className={cn(
                         "hover:bg-slate-50/80 transition-colors group",
-                        row.isCurrentUser && "bg-emerald-50/40",
+                        row.isCurrentUser && "bg-emerald-50/50",
                       )}
                     >
                       <td className="px-6 py-4">
-                        <span className="font-mono font-bold text-slate-400 group-hover:text-slate-900 transition-colors">
+                        <span className="font-mono font-bold text-slate-400">
                           #{row.rank}
                         </span>
                       </td>
@@ -295,17 +290,17 @@ export default function EcoLeaderboard() {
                         <div className="flex items-center gap-3">
                           <Avatar seed={row.name} />
                           <div>
-                            <p className="font-bold text-slate-800 flex items-center gap-2">
+                            <p className="font-bold text-slate-800 flex items-center gap-2 leading-none">
                               {row.name}
                               {row.isCurrentUser && (
-                                <span className="bg-emerald-500 text-[10px] text-white px-2 py-0.5 rounded-full">
+                                <span className="bg-emerald-500 text-[8px] text-white px-1.5 py-0.5 rounded-md font-black">
                                   YOU
                                 </span>
                               )}
                             </p>
-                            <p className="text-xs text-slate-400">
+                            <span className="text-[10px] text-slate-400 font-medium">
                               {row.totalScans} scans
-                            </p>
+                            </span>
                           </div>
                         </div>
                       </td>
@@ -328,33 +323,35 @@ export default function EcoLeaderboard() {
         </section>
       </main>
 
-      {/* Improved Sticky Quickbar */}
+      {/* Perfectly Centered Sticky Quickbar */}
       <AnimatePresence>
         {currentUser && currentUser.rank > 3 && !isSearching && (
           <motion.div
-            initial={{ y: 100 }}
-            animate={{ y: 0 }}
-            exit={{ y: 100 }}
-            className="fixed bottom-6 inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-2xl z-50"
+            initial={{ y: 100, x: "-50%" }}
+            animate={{ y: 0, x: "-50%" }}
+            exit={{ y: 100, x: "-50%" }}
+            className="fixed bottom-6 left-1/2 w-[calc(100%-2rem)] max-w-lg z-50"
           >
-            <div className="bg-slate-900 text-white rounded-3xl p-4 shadow-2xl flex items-center justify-between border border-white/10 backdrop-blur-lg">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-2xl bg-emerald-500 flex items-center justify-center font-black text-white shadow-lg shadow-emerald-500/20">
-                  {currentUser.name.charAt(0)}
+            <div className="bg-slate-900 text-white rounded-[2rem] p-4 shadow-2xl flex items-center justify-between border border-white/10 backdrop-blur-md">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500 flex items-center justify-center font-black text-white">
+                  {currentUser.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <p className="text-sm font-bold">{currentUser.name}</p>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-widest">
-                    Current Position
+                  <p className="text-xs font-black leading-none">
+                    {currentUser.name}
+                  </p>
+                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tighter mt-1">
+                    Global Rank #{currentUser.rank}
                   </p>
                 </div>
               </div>
-              <div className="text-right px-2">
-                <div className="text-xl font-black text-emerald-400">
-                  #{currentUser.rank}
+              <div className="text-right">
+                <div className="text-lg font-black text-emerald-400 leading-none">
+                  {currentUser.ecoScore.toLocaleString()}
                 </div>
-                <div className="text-[10px] font-mono text-slate-400">
-                  {currentUser.ecoScore.toLocaleString()} PTS
+                <div className="text-[9px] font-mono text-slate-500 uppercase">
+                  Points
                 </div>
               </div>
             </div>
