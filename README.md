@@ -1,5 +1,4 @@
-# entity["organization","EcoLens","ai waste app"] — AI‑Powered Waste Classification & Gamified Environmental Impact
-
+#  AI‑Powered Waste Classification & Gamified Environmental Impact
 **Website:** https://eco.wahb.space  
 **Repository:** `github.com/wahb-amir/ecolens`  
 **Status:** Production-ready (documentation)  
