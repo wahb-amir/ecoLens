@@ -107,8 +107,28 @@ export function Sidebar() {
       <AnimatePresence>
         {isOpen && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsOpen(false)} className="fixed inset-0 z-[50] bg-slate-900/40 backdrop-blur-sm md:hidden" />
-            <motion.aside initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ type: "spring", damping: 25 }} className="fixed inset-y-0 left-0 z-[51] w-[280px] bg-white md:hidden flex flex-col">
+            {/* Backdrop: put extremely high z so nothing can appear above it */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsOpen(false)}
+              // NOTE: using very high z-index to avoid stacking context surprises
+              className="fixed inset-0 z-[9998] bg-slate-900/40 backdrop-blur-sm md:hidden"
+              aria-hidden="true"
+            />
+
+            {/* Drawer: full-height fixed panel with higher z-index than header/backdrop */}
+            <motion.aside
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", damping: 25 }}
+              // inset-0 ensures top:0 so it covers the sticky header; h-full for full coverage
+              className="fixed inset-0 left-0 z-[9999] w-[280px] max-w-full bg-white md:hidden flex flex-col"
+              role="dialog"
+              aria-modal="true"
+            >
               <div className="p-6 flex flex-col h-full">
                 <div className="flex items-center justify-between mb-8">
                   <span className="font-black tracking-tighter text-xl text-slate-900">
@@ -140,7 +160,7 @@ export function Sidebar() {
       {/* LOGOUT CONFIRMATION MODAL */}
       <AnimatePresence>
         {showLogoutModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[10050] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }} 
               animate={{ opacity: 1 }} 
@@ -153,6 +173,8 @@ export function Sidebar() {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
               className="relative w-full max-w-[340px] bg-white rounded-3xl p-6 shadow-2xl text-center"
+              role="dialog"
+              aria-modal="true"
             >
               <div className="mx-auto w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center mb-4">
                 <LogOut className="h-6 w-6 text-rose-600" />
