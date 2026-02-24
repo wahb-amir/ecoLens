@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence, useSpring, useTransform } from "framer-motion";
-import { Leaf, Award, BarChart, Zap, ShieldCheck, Trophy, Crown, Hammer, LucideIcon, Sparkles, X } from "lucide-react";
+import { Leaf, Award, BarChart, Zap, ShieldCheck, Trophy, Crown, Hammer, LucideIcon, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // --- Types ---
@@ -32,7 +32,6 @@ function AnimatedNumber({ value }: { value: number }) {
 export default function AchievementsSection() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Close card when pressing Escape
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedId(null); };
     window.addEventListener('keydown', handleEsc);
@@ -46,14 +45,18 @@ export default function AchievementsSection() {
   ];
 
   return (
-    <section className="relative w-full py-24 px-6 lg:py-32 bg-white isolate">
-      {/* Background Polish (No scroll blocking) */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full -z-10 pointer-events-none">
+    /* FIX 1: Removed 'isolate'
+       FIX 2: Added 'z-50' to ensure this section sits above the Telemetry section
+    */
+    <section className="relative w-full py-24 px-6 lg:py-32 bg-white z-50">
+      
+      {/* Background Polish - Set to z-0 so it's behind everything */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full z-0 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-50/30 blur-[120px] rounded-full" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-cyan-50/30 blur-[120px] rounded-full" />
       </div>
 
-      <div className="max-w-6xl mx-auto relative">
+      <div className="max-w-6xl mx-auto relative z-10">
         <div className="mb-24">
           <motion.div className="flex items-center gap-2 mb-4">
             <Sparkles size={16} className="text-emerald-500" />
@@ -65,7 +68,7 @@ export default function AchievementsSection() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-32 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-32 relative">
           {stats.map((stat, i) => (
             <motion.div
               key={i}
@@ -86,19 +89,18 @@ export default function AchievementsSection() {
         </div>
 
         {/* Badges Container */}
-        <div className="flex flex-wrap justify-center gap-6 md:gap-10 relative z-20">
+        <div className="flex flex-wrap justify-center gap-6 md:gap-10 relative">
           {achievements.map((ach) => {
             const isActive = selectedId === ach.id;
             return (
               <div 
                 key={ach.id} 
                 className="relative"
-                style={{ zIndex: isActive ? 100 : 1 }} 
-                // Desktop Hover Support
+                /* FIX 3: Dynamic z-index on the wrapper so active badge is always top of the row */
+                style={{ zIndex: isActive ? 100 : 10 }} 
                 onMouseEnter={() => setSelectedId(ach.id)}
                 onMouseLeave={() => setSelectedId(null)}
               >
-                {/* The "Ping" Signal */}
                 {!isActive && (
                   <div className="absolute inset-0 rounded-full bg-emerald-400/20 animate-ping pointer-events-none" style={{ animationDuration: '3s' }} />
                 )}
@@ -107,7 +109,7 @@ export default function AchievementsSection() {
                   layout
                   onClick={() => setSelectedId(isActive ? null : ach.id)}
                   className={cn(
-                    "relative z-[90] w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center transition-all duration-500",
+                    "relative z-30 w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center transition-all duration-500",
                     "bg-white border-2",
                     isActive 
                       ? "border-emerald-500 shadow-2xl scale-110 ring-8 ring-emerald-50" 
@@ -124,7 +126,9 @@ export default function AchievementsSection() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 8, scale: 0.95 }}
                       transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                      className="absolute top-[115%] left-1/2 -translate-x-1/2 w-72 p-6 bg-white border border-slate-100 shadow-[0_30px_70px_rgba(0,0,0,0.12)] rounded-[2.5rem] z-[100] text-center pointer-events-none md:pointer-events-auto"
+                      /* FIX 4: Use z-[9999] and ensure pointer events allow scrolling 
+                      */
+                      className="absolute top-[115%] left-1/2 -translate-x-1/2 w-72 p-6 bg-white border border-slate-100 shadow-[0_30px_70px_rgba(0,0,0,0.15)] rounded-[2.5rem] z-[9999] text-center pointer-events-none md:pointer-events-auto"
                     >
                       <div className={cn("mx-auto w-12 h-12 rounded-2xl flex items-center justify-center mb-4 bg-slate-50 shadow-inner", ach.color)}>
                         <ach.icon size={24} />
