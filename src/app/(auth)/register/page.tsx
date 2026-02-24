@@ -55,7 +55,7 @@ export default function RegisterPage() {
 
       setTimeout(() => {
         router.push(`/verify-otp`);
-      }, 1500);
+      }, 500);
 
     } catch (error: any) {
       setStatus({

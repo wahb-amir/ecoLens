@@ -57,7 +57,7 @@ export default function LoginPage() {
         } else {
           router.push("/dashboard");
         }
-      }, 800);
+      }, 200);
     } catch (error: any) {
       setStatus({
         type: "error",

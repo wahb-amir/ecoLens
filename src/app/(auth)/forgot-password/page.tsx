@@ -19,8 +19,7 @@ export default function ForgotPasswordPage() {
     setTimeout(() => {
       setIsLoading(false);
       setIsSent(true);
-      // Automatically redirect to OTP page after a delay usually
-    }, 1500);
+    }, 800);
   };
 
   if (isSent) {

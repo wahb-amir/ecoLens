@@ -87,7 +87,7 @@ function OtpForm() {
         msg: "Identity verified! Shielding up...",
       });
 
-      setTimeout(() => router.push("/dashboard"), 1200);
+      setTimeout(() => router.push("/dashboard"), 400);
 
     } catch (error: any) {
       setStatus({
