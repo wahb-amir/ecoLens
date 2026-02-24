@@ -109,7 +109,7 @@ function VerifyOTPForm() {
         <div className="text-center">
           <button
             type="button"
-            onClick={() => router.push("/auth/forgot-password")}
+            onClick={() => router.push("/forgot-password")}
             className="text-sm text-slate-600 hover:text-slate-900 hover:underline"
           >
             Change email address
