@@ -298,12 +298,10 @@ export default function UpscaledDashboard() {
       if (data?.noMatch) {
         setPredictions(null);
         setError({
-          // If the backend said "No waste detected", show a cleaner title
-          title:
-            data.message === "No waste detected"
-              ? "Nothing to Recycle"
-              : "Match Unclear",
-          message: data.message || "Try a different angle or clearer photo.",
+          title: "Nothing to Recycle",
+          message:
+            data.message ||
+            "We couldn't detect any recyclable waste in this image. Try a different angle or closer shot.",
         });
         return; // Exit early so we don't refresh stats or show success
       }
@@ -515,7 +513,7 @@ export default function UpscaledDashboard() {
                         </div>
                       </div>
                       <h3 className="text-white font-bold text-lg mb-1">
-                        Clear Horizon!
+                        {error.title}
                       </h3>
                       <p className="text-slate-300 text-sm mb-6 leading-relaxed">
                         {error.message}
