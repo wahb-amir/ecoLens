@@ -250,7 +250,17 @@ export default function UpscaledDashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate size (e.g., max 10MB)
+    // 1. Validate File Type
+    const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      setError({
+        title: "Invalid Format",
+        message: "Please upload a PNG, JPG, or WebP image.",
+      });
+      return;
+    }
+
+    // 2. Validate size (e.g., max 10MB)
     if (file.size > 10 * 1024 * 1024) {
       setError({
         title: "File Too Large",
@@ -262,7 +272,6 @@ export default function UpscaledDashboard() {
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target?.result as string;
-      // Always clear old predictions / errors when a fresh file is chosen
       setPredictions(null);
       setError(null);
       setPreview(result);
@@ -397,15 +406,14 @@ export default function UpscaledDashboard() {
           <Card className="relative overflow-hidden border-none shadow-2xl bg-black rounded-[2.5rem] aspect-[3/4] lg:sticky lg:top-28 flex flex-col justify-end">
             {/* Hidden canvas for image capture */}
             <canvas ref={canvasRef} className="hidden" />
+            /* Locate this block in your code */
             <input
               type="file"
-              accept="image/*"
-              capture="environment"
+              accept="image/png, image/jpeg, image/jpg, image/webp"
               className="hidden"
               ref={fileInputRef}
               onChange={handleFileUpload}
             />
-
             {/* Video Feed */}
             <video
               ref={videoRef}
@@ -422,7 +430,6 @@ export default function UpscaledDashboard() {
                     : "opacity-0",
               )}
             />
-
             {/* Preview Layer */}
             {preview && (
               <motion.img
@@ -435,7 +442,6 @@ export default function UpscaledDashboard() {
                 key={preview.slice(0, 32)}
               />
             )}
-
             {/* UI Overlay */}
             <div className="absolute inset-0 z-30 flex flex-col justify-between p-6">
               {/* Top Controls */}
