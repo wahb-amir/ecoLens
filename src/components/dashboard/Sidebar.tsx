@@ -16,7 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-
+import { useAuth } from "@/app/providers/AuthProvider";
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: Home, id: "01" },
   { href: "/dashboard/leaderboard", label: "Leaderboard", icon: Trophy, id: "02" },
@@ -29,7 +29,7 @@ export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-
+  const {syncUser} = useAuth();
   // Prevent scroll when any modal/drawer is open
   useEffect(() => {
     if (isOpen || showLogoutModal) document.body.style.overflow = "hidden";
@@ -41,6 +41,7 @@ export function Sidebar() {
     try {
       const response = await fetch("/api/auth/logout", { method: "GET" });
       if (response.ok) {
+        await syncUser();
         router.push("/login");
         router.refresh(); 
       }
