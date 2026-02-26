@@ -406,7 +406,6 @@ export default function UpscaledDashboard() {
           <Card className="relative overflow-hidden border-none shadow-2xl bg-black rounded-[2.5rem] aspect-[3/4] lg:sticky lg:top-28 flex flex-col justify-end">
             {/* Hidden canvas for image capture */}
             <canvas ref={canvasRef} className="hidden" />
-            /* Locate this block in your code */
             <input
               type="file"
               accept="image/png, image/jpeg, image/jpg, image/webp"
