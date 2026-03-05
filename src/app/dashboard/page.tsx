@@ -34,6 +34,7 @@ import {
   TrendingUp,
   Award,
   RefreshCcw,
+  Coffee,
   Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,8 @@ export default function UpscaledDashboard() {
   const { stats, refreshStats, isLoading: isStatsLoading } = useUserStats();
   const { fetchWithAuth, user } = useAuth();
 
+  const [isColdStarting, setIsColdStarting] = useState(false);
+  const coldStartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // -- Interaction States --
   const [activeMaterial, setActiveMaterial] = useState<string>("plastic");
   const [isUploading, setIsUploading] = useState(false);
@@ -279,11 +282,15 @@ export default function UpscaledDashboard() {
     };
     reader.readAsDataURL(file);
   };
-
   const processImage = async (base64Image: string) => {
     setIsUploading(true);
     setPredictions(null);
     setError(null);
+    setIsColdStarting(false);
+
+    coldStartTimeoutRef.current = setTimeout(() => {
+      setIsColdStarting(true);
+    }, 8000);
 
     try {
       const res = await fetchWithAuth("/api/predict", {
@@ -292,48 +299,36 @@ export default function UpscaledDashboard() {
         body: JSON.stringify({ dataUrl: base64Image }),
       });
 
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch (parseErr) {
-        throw new Error("Unexpected server response.");
-      }
+      const data = await res.json();
 
       if (!res.ok) {
         throw new Error(data?.message || "Failed to process image.");
       }
 
-      // --- The Fix: Handle "No Match" or "No Waste" specifically ---
       if (data?.noMatch) {
-        setPredictions(null);
         setError({
           title: "Nothing to Recycle",
           message:
             data.message ||
-            "We couldn't detect any recyclable waste in this image. Try a different angle or closer shot.",
+            "We couldn't detect any recyclable waste. Try another angle!",
         });
-        return; // Exit early so we don't refresh stats or show success
+        return;
       }
 
-      // Normal success path (only happens if it's actual waste)
       setPredictions(data.predictions ?? null);
-
-      try {
-        await refreshStats();
-      } catch (e) {
-        console.warn("refreshStats failed:", e);
-      }
+      await refreshStats();
     } catch (err: any) {
-      console.error("processImage error:", err);
       setError({
         title: "Analysis Failed",
         message: err?.message || "Our neural net encountered a glitch.",
       });
     } finally {
       setIsUploading(false);
+      setIsColdStarting(false);
+      if (coldStartTimeoutRef.current)
+        clearTimeout(coldStartTimeoutRef.current);
     }
   };
-
   const resetScanner = () => {
     setPreview(null);
     setPredictions(null);
@@ -347,11 +342,16 @@ export default function UpscaledDashboard() {
       c.width = 0;
       c.height = 0;
     }
+    setIsColdStarting(false);
+    if (coldStartTimeoutRef.current) clearTimeout(coldStartTimeoutRef.current);
   };
 
-  // Cleanup on unmount
   useEffect(() => {
-    return () => stopCamera();
+    return () => {
+      stopCamera();
+      if (coldStartTimeoutRef.current)
+        clearTimeout(coldStartTimeoutRef.current);
+    };
   }, [stopCamera]);
 
   // -- Data Calculations --
@@ -404,7 +404,28 @@ export default function UpscaledDashboard() {
         {/* LEFT COLUMN: THE SCANNER & QUICK STATS */}
         <div className="lg:col-span-5 space-y-6">
           <Card className="relative overflow-hidden border-none shadow-2xl bg-black rounded-[2.5rem] aspect-[3/4] lg:sticky lg:top-28 flex flex-col justify-end">
-            {/* Hidden canvas for image capture */}
+            <AnimatePresence>
+              {isColdStarting && isUploading && (
+                <motion.div
+                  initial={{ opacity: 0, y: -40, scale: 0.9, x: "-50%" }}
+                  animate={{ opacity: 1, y: 0, scale: 1, x: "-50%" }}
+                  exit={{ opacity: 0, y: -40, scale: 0.9, x: "-50%" }}
+                  className="absolute top-10 left-1/2 z-[60] bg-white border border-emerald-200 p-6 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center gap-5 min-w-[320px]"
+                >
+                  <div className="bg-emerald-100 p-3 rounded-2xl">
+                    <Coffee className="w-8 h-8 text-emerald-600 animate-bounce" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-lg font-bold text-slate-900 leading-tight">
+                      Waking up the AI...
+                    </p>
+                    <p className="text-sm text-slate-500 mt-1">
+                      Free servers take a moment to spin up.
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <canvas ref={canvasRef} className="hidden" />
             <input
               type="file"
