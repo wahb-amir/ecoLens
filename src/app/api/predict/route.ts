@@ -8,7 +8,8 @@ import { verifyAccessToken } from "@/lib/token";
 import { Types } from "mongoose";
 import { ACHIEVEMENT_RULES } from "@/lib/achievements/config";
 
-// Helper to map AI labels to our DB categories
+/* ---------- helpers (same as yours, but slightly clearer) ---------- */
+
 const mapLabelToCategory = (label: string): string => {
   const l = label.toLowerCase();
   if (l.includes("plastic")) return "plastic";
@@ -21,76 +22,82 @@ const mapLabelToCategory = (label: string): string => {
   return "other";
 };
 
-const calculateStreak = (
-  lastScanDate: Date | undefined,
-  currentScanDate: Date,
-): number | undefined => {
-  if (!lastScanDate) return 1;
-
-  const last = new Date(lastScanDate);
-  const current = new Date(currentScanDate);
-
-  last.setUTCHours(0, 0, 0, 0);
-  current.setUTCHours(0, 0, 0, 0);
-
-  const diffInMs = current.getTime() - last.getTime();
-  const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
-
-  if (diffInDays === 1) return undefined; // consecutive -> increment
-  if (diffInDays > 1) return 1; // gap -> reset to 1
-  return 0; // same day -> no change
-};
-
-// NEW: treat unknown/mixed as no-match
-// --- Updated Helper ---
 const isNoMatchLabel = (label?: string | null): boolean => {
   if (!label) return true;
   const l = label.toString().trim().toLowerCase();
   if (!l) return true;
 
-  // Added "no_waste" and "no-waste" to the exclusion list
   const invalidLabels = ["unknown", "mixed", "no_waste", "no-waste", "none"];
-  
   if (invalidLabels.includes(l)) return true;
   if (l.includes("unknown/mixed") || l.includes("mixed/unknown")) return true;
 
-  // Protect simple contain case, ensuring no actual waste categories are present
-  if (/\b(unknown|mixed|no_waste)\b/.test(l) && 
-      !/\b(plastic|paper|glass|metal|food|organic|cardboard|aluminum|can)\b/.test(l)) {
+  if (
+    /\b(unknown|mixed|no_waste|no-waste)\b/.test(l) &&
+    !/\b(plastic|paper|glass|metal|food|organic|cardboard|aluminum|can)\b/.test(
+      l,
+    )
+  ) {
     return true;
   }
   return false;
 };
+
+/**
+ * Calculate what to do with the streak based on previous lastScanDate.
+ * Returns: { action: 'increment' | 'reset' | 'noop', newStreak?: number }
+ */
+const decideStreakUpdate = (
+  lastScanDate: Date | undefined | null,
+  now: Date,
+): { action: "increment" | "reset" | "noop" | "init"; newStreak?: number } => {
+  if (!lastScanDate) return { action: "init", newStreak: 1 };
+
+  const last = new Date(lastScanDate);
+  const current = new Date(now);
+
+  last.setUTCHours(0, 0, 0, 0);
+  current.setUTCHours(0, 0, 0, 0);
+
+  const diffInMs = current.getTime() - last.getTime();
+  const diffInDays = Math.round(diffInMs / (1000 * 60 * 60 * 24));
+
+  if (diffInDays === 0) return { action: "noop" }; // same day
+  if (diffInDays === 1) return { action: "increment" }; // consecutive
+  return { action: "reset", newStreak: 1 }; // gap
+};
+
+/* -------------------- route handler -------------------- */
 export async function POST(req: Request) {
   try {
     await connectToDb();
-    const cookieStore = await cookies();
-    const acesssToken = cookieStore.get("access_token")?.value;
 
-    if (!acesssToken) {
+    // auth
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("access_token")?.value;
+    if (!accessToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const decoded = verifyAccessToken(acesssToken);
+    const decoded = verifyAccessToken(accessToken);
     if (!decoded || decoded.uid === undefined) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
     const userId = decoded.uid;
 
+    // payload
     const { dataUrl } = await req.json();
-    if (!dataUrl)
+    if (!dataUrl) {
       return NextResponse.json({ error: "Missing dataUrl" }, { status: 400 });
+    }
 
-    // 2. AI PREDICTION (proxy)
+    // 1) call HF Space (proxy)
     const target = "https://wahb-amir-ecolens.hf.space/run/predict";
     const proxied = await fetch(target, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: [dataUrl] }),
     });
-
     const payload = await proxied.json();
 
-    // Normalize extraction logic
     let predictions: { label: string; prob: number }[] = [];
     if (payload?.data?.[0]?.confidences) {
       predictions = payload.data[0].confidences.map((c: any) => ({
@@ -107,10 +114,7 @@ export async function POST(req: Request) {
     }
 
     const topMatch = predictions[0];
-
-    // --- NEW: If the model returns Unknown / Mixed, DO NOT update DB or create a scan.
     if (isNoMatchLabel(topMatch.label)) {
-      // Return the predictions and a noMatch flag so frontend can present "No match found"
       return NextResponse.json({
         predictions,
         noMatch: true,
@@ -118,44 +122,56 @@ export async function POST(req: Request) {
       });
     }
 
-    // proceed to map and update DB (only for valid matches)
+    // prepare values
     const category = mapLabelToCategory(topMatch.label);
-    const pointsEarned = Math.round(topMatch.prob * 20); // Scale points by confidence
-
+    const pointsEarned = Math.round(topMatch.prob * 20);
     const objectUserId = new Types.ObjectId(userId);
-    const currentUser = await User.findById(objectUserId);
 
-    if (!currentUser)
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    const currentUser = await User.findById(objectUserId)
+      .select("lastScanDate streak achievements totalScans ecoScore categoryStats")
+      .lean();
 
     const now = new Date();
-    const streakResult = calculateStreak(currentUser.lastScanDate, now);
+    const streakDecision = decideStreakUpdate(
+      currentUser?.lastScanDate,
+      now,
+    );
 
     const updateQuery: any = {
       $inc: {
         totalScans: 1,
         ecoScore: pointsEarned,
+        // dynamic nested increment for category stats
         [`categoryStats.${category}`]: 1,
       },
-      $set: { lastScanDate: now },
+      $set: {
+        lastScanDate: now,
+      },
     };
 
-    if (streakResult === undefined) {
+    if (streakDecision.action === "increment") {
       updateQuery.$inc.streak = 1;
-    } else if (streakResult === 1) {
-      updateQuery.$set.streak = 1;
+    } else if (streakDecision.action === "reset" || streakDecision.action === "init") {
+      updateQuery.$set.streak = streakDecision.newStreak ?? 1;
     }
 
     const updatedUser = await User.findOneAndUpdate(
       { _id: objectUserId },
       updateQuery,
-      { new: true, upsert: true },
-    );
+      { returnDocument: "after", upsert: true }
+    ).lean();
 
-    // ACHIEVEMENT ENGINE
+    if (!updatedUser) {
+      return NextResponse.json(
+        { error: "Failed to update user" },
+        { status: 500 },
+      );
+    }
+
+    // 4) Achievement evaluation (based on updated values)
     const newlyUnlocked: string[] = [];
     const existingAchievementIds = new Set(
-      updatedUser.achievements.map((a: any) => a.achievementId),
+      (updatedUser.achievements || []).map((a: any) => a.achievementId),
     );
 
     for (const rule of ACHIEVEMENT_RULES) {
@@ -163,52 +179,55 @@ export async function POST(req: Request) {
 
       let meetsThreshold = false;
       if (rule.type === "totalScans")
-        meetsThreshold = updatedUser.totalScans >= rule.threshold;
+        meetsThreshold = (updatedUser.totalScans ?? 0) >= rule.threshold;
       if (rule.type === "ecoScore")
-        meetsThreshold = updatedUser.ecoScore >= rule.threshold;
+        meetsThreshold = (updatedUser.ecoScore ?? 0) >= rule.threshold;
       if (rule.type === "streak")
-        meetsThreshold = updatedUser.streak >= rule.threshold;
+        meetsThreshold = (updatedUser.streak ?? 0) >= rule.threshold;
       if (rule.type === "category")
         meetsThreshold =
-          updatedUser.categoryStats[rule.category!] >= rule.threshold;
+          (updatedUser.categoryStats?.[rule.category!] ?? 0) >= rule.threshold;
 
-      if (meetsThreshold) {
-        newlyUnlocked.push(rule.id);
-      }
+      if (meetsThreshold) newlyUnlocked.push(rule.id);
     }
 
-    if (newlyUnlocked.length > 0) {
-      await User.updateOne(
-        { _id: updatedUser._id },
-        {
-          $push: {
-            achievements: {
-              $each: newlyUnlocked.map((id) => ({
-                achievementId: id,
-                unlockedAt: new Date(),
-              })),
-            },
-          },
-        },
-      );
-    }
-
-    // Persist scan history
-    const scanLog = await Scan.create({
+    // 5) persist scan log + push achievements (both can run in parallel)
+    const scanDoc = {
       userId: updatedUser._id,
       label: topMatch.label,
       confidence: topMatch.prob,
       pointsEarned,
       metadata: {
-        inference_time: payload?.duration,
+        inference_time: payload?.duration ?? null,
         raw_category: category,
       },
-    });
+    };
 
-    // Return enriched response
+    const writes: Promise<any>[] = [];
+
+    // create scan
+    writes.push(Scan.create(scanDoc));
+
+    // push achievements (if any)
+    if (newlyUnlocked.length > 0) {
+      const toPush = newlyUnlocked.map((id) => ({
+        achievementId: id,
+        unlockedAt: new Date(),
+      }));
+      writes.push(
+        User.updateOne(
+          { _id: updatedUser._id },
+          { $push: { achievements: { $each: toPush } } },
+        ),
+      );
+    }
+
+    const [scanLog] = await Promise.all(writes);
+
+    // 6) Respond (note: achievementsCount is current achievements + newlyUnlocked)
     return NextResponse.json({
       predictions,
-      scanId: scanLog._id,
+      scanId: scanLog?._id ?? null,
       pointsEarned,
       newAchievements: newlyUnlocked,
       userStats: {
@@ -216,7 +235,7 @@ export async function POST(req: Request) {
         totalScans: updatedUser.totalScans,
         ecoScore: updatedUser.ecoScore,
         achievementsCount:
-          updatedUser.achievements.length + newlyUnlocked.length,
+          (updatedUser.achievements?.length ?? 0) + newlyUnlocked.length,
       },
       inference_time: payload?.duration ?? null,
     });
