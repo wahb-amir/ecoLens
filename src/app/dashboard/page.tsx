@@ -706,6 +706,31 @@ export default function UpscaledDashboard() {
             </div>
           </Card>
 
+          {/* Milestone Card */}
+          <Card className="p-6 rounded-[2rem] bg-gradient-to-br from-slate-900 to-slate-800 text-white border-none shadow-xl">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="text-emerald-400 text-xs font-bold uppercase tracking-widest">
+                  Current Milestone
+                </p>
+                <h3 className="text-xl font-bold">Earth Guardian II</h3>
+              </div>
+              <TrendingUp className="text-emerald-400 w-5 h-5" />
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs font-mono">
+                <span>{stats?.totalScans || 0} / 250 Scans</span>
+                <span>{impactData.monthlyTrend} this month</span>
+              </div>
+              <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: "65%" }}
+                  className="h-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]"
+                />
+              </div>
+            </div>
+          </Card>
         </div>
 
         {/* RIGHT COLUMN: INTERACTIVE INSIGHTS */}
