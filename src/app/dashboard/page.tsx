@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { useUserStats } from "@/lib/use-user-stats";
 import { useAuth } from "../providers/AuthProvider";
+import { LucideIcon } from "lucide-react";
 import { WasteDistributionChart } from "@/components/dashboard/WasteDistributionChart";
 import { cn } from "@/lib/utils";
 import {
@@ -53,7 +54,7 @@ const ACHIEVEMENT_REGISTRY: Record<
   {
     title: string;
     description: string;
-    icon: React.ElementType;
+    icon: LucideIcon;
     color: string;
     rarity: "common" | "rare" | "epic" | "legendary";
   }
@@ -191,7 +192,7 @@ function AchievementToast({
 
   if (!data) return null;
 
-  const IconComponent = data.icon as React.ElementType;
+  const IconComponent = data.icon;
   const rarity = RARITY_CONFIG[data.rarity];
 
   return (
