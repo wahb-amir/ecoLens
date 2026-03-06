@@ -36,6 +36,8 @@ import {
   RefreshCcw,
   Coffee,
   Image as ImageIcon,
+  Heart,
+  Rocket,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -64,7 +66,12 @@ export default function UpscaledDashboard() {
   const { fetchWithAuth, user } = useAuth();
 
   const [isColdStarting, setIsColdStarting] = useState(false);
+  const [showColdStartThankYou, setShowColdStartThankYou] = useState(false);
   const coldStartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const coldStartThankYouTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Did the user actually sit through a cold start for this request?
+  const didExperienceColdStartRef = useRef(false);
+
   // -- Interaction States --
   const [activeMaterial, setActiveMaterial] = useState<string>("plastic");
   const [isUploading, setIsUploading] = useState(false);
@@ -93,7 +100,6 @@ export default function UpscaledDashboard() {
         videoRef.current.srcObject = null;
       }
     } catch (e) {
-      // non-fatal: log and continue cleanup
       console.warn("stopCamera: failed to stop stream", e);
     }
 
@@ -102,7 +108,6 @@ export default function UpscaledDashboard() {
   }, []);
 
   const startCamera = async () => {
-    // Ensure any previous preview/canvas is cleared so we never reuse an old image as background
     setError(null);
     setPreview(null);
     setPredictions(null);
@@ -140,7 +145,6 @@ export default function UpscaledDashboard() {
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        // ensure the video element is ready before playing
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch((playErr) => {
             console.warn("video.play() failed:", playErr);
@@ -149,7 +153,6 @@ export default function UpscaledDashboard() {
           setIsStartingCamera(false);
         };
       } else {
-        // fallback if ref lost
         setIsCameraActive(true);
         setIsStartingCamera(false);
       }
@@ -180,10 +183,8 @@ export default function UpscaledDashboard() {
   };
 
   const toggleCamera = () => {
-    // switch facing mode and restart camera cleanly
     setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
     stopCamera();
-    // small delay to ensure tracks are stopped
     setTimeout(() => startCamera(), 300);
   };
 
@@ -192,7 +193,6 @@ export default function UpscaledDashboard() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
-      // We want a high-quality 3:4 crop from the center of the video
       const outputWidth = 600;
       const outputHeight = 800;
 
@@ -201,7 +201,6 @@ export default function UpscaledDashboard() {
       const ctx = canvas.getContext("2d");
 
       if (ctx) {
-        // Calculate how much to crop from the sides/top to get a 3:4 ratio
         const videoAspect = video.videoWidth / video.videoHeight || 16 / 9;
         const targetAspect = 3 / 4;
 
@@ -211,39 +210,22 @@ export default function UpscaledDashboard() {
           sy = 0;
 
         if (videoAspect > targetAspect) {
-          // Video is wider than 3:4 (standard landscape)
           sHeight = video.videoHeight;
           sWidth = sHeight * targetAspect;
           sx = (video.videoWidth - sWidth) / 2;
           sy = 0;
         } else {
-          // Video is taller than 3:4
           sWidth = video.videoWidth;
           sHeight = sWidth / targetAspect;
           sx = 0;
           sy = (video.videoHeight - sHeight) / 2;
         }
 
-        ctx.drawImage(
-          video,
-          sx,
-          sy,
-          sWidth,
-          sHeight,
-          0,
-          0,
-          outputWidth,
-          outputHeight,
-        );
+        ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, outputWidth, outputHeight);
 
-        // convert to jpeg (reasonable quality)
         const imageData = canvas.toDataURL("image/jpeg", 0.8);
-
-        // Set preview and immediately stop camera so the UI shows the captured image
         setPreview(imageData);
         stopCamera();
-
-        // send for processing
         processImage(imageData);
       }
     }
@@ -253,7 +235,6 @@ export default function UpscaledDashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 1. Validate File Type
     const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
     if (!validTypes.includes(file.type)) {
       setError({
@@ -263,7 +244,6 @@ export default function UpscaledDashboard() {
       return;
     }
 
-    // 2. Validate size (e.g., max 10MB)
     if (file.size > 10 * 1024 * 1024) {
       setError({
         title: "File Too Large",
@@ -282,14 +262,18 @@ export default function UpscaledDashboard() {
     };
     reader.readAsDataURL(file);
   };
+
   const processImage = async (base64Image: string) => {
     setIsUploading(true);
     setPredictions(null);
     setError(null);
     setIsColdStarting(false);
+    didExperienceColdStartRef.current = false;
 
+    // After 8s, mark as cold-starting and flag that user is experiencing it
     coldStartTimeoutRef.current = setTimeout(() => {
       setIsColdStarting(true);
+      didExperienceColdStartRef.current = true;
     }, 8000);
 
     try {
@@ -303,6 +287,15 @@ export default function UpscaledDashboard() {
 
       if (!res.ok) {
         throw new Error(data?.message || "Failed to process image.");
+      }
+
+      // If the user sat through a cold start and the request succeeded, thank them
+      if (didExperienceColdStartRef.current) {
+        setShowColdStartThankYou(true);
+        // Auto-dismiss after 6 seconds
+        coldStartThankYouTimeoutRef.current = setTimeout(() => {
+          setShowColdStartThankYou(false);
+        }, 6000);
       }
 
       if (data?.noMatch) {
@@ -325,10 +318,12 @@ export default function UpscaledDashboard() {
     } finally {
       setIsUploading(false);
       setIsColdStarting(false);
+      didExperienceColdStartRef.current = false;
       if (coldStartTimeoutRef.current)
         clearTimeout(coldStartTimeoutRef.current);
     }
   };
+
   const resetScanner = () => {
     setPreview(null);
     setPredictions(null);
@@ -349,8 +344,8 @@ export default function UpscaledDashboard() {
   useEffect(() => {
     return () => {
       stopCamera();
-      if (coldStartTimeoutRef.current)
-        clearTimeout(coldStartTimeoutRef.current);
+      if (coldStartTimeoutRef.current) clearTimeout(coldStartTimeoutRef.current);
+      if (coldStartThankYouTimeoutRef.current) clearTimeout(coldStartThankYouTimeoutRef.current);
     };
   }, [stopCamera]);
 
@@ -369,6 +364,55 @@ export default function UpscaledDashboard() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20 overflow-x-hidden">
+
+      {/* ── Cold Start Thank-You Toast ── */}
+      <AnimatePresence>
+        {showColdStartThankYou && (
+          <motion.div
+            initial={{ opacity: 0, y: 80, scale: 0.92 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 80, scale: 0.92 }}
+            transition={{ type: "spring", stiffness: 300, damping: 28 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] w-[calc(100%-2rem)] max-w-sm"
+          >
+            <div className="relative bg-white rounded-[1.75rem] shadow-[0_20px_60px_rgba(0,0,0,0.18)] border border-slate-100 p-5 overflow-hidden">
+              {/* Decorative gradient strip at top */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 rounded-t-[1.75rem]" />
+
+              <div className="flex items-start gap-4">
+                {/* Icon */}
+                <div className="flex-shrink-0 bg-emerald-100 p-3 rounded-2xl">
+                  <Heart className="w-6 h-6 text-emerald-600" />
+                </div>
+
+                {/* Text */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-slate-900 leading-snug">
+                    Thanks for your patience! 🙏
+                  </p>
+                  <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+                    That was a <span className="font-semibold text-emerald-600">cold start</span> — the AI server was waking up. It only happens once; all future scans will be{" "}
+                    <span className="font-semibold text-slate-700">much faster</span>.
+                  </p>
+                  <div className="mt-3 flex items-center gap-1.5 text-xs font-bold text-emerald-600">
+                    <Rocket className="w-3.5 h-3.5" />
+                    <span>Server is now warm &amp; ready</span>
+                  </div>
+                </div>
+
+                {/* Dismiss */}
+                <button
+                  onClick={() => setShowColdStartThankYou(false)}
+                  className="flex-shrink-0 text-slate-400 hover:text-slate-600 transition-colors mt-0.5"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Dynamic Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-[100]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between ">
@@ -440,7 +484,6 @@ export default function UpscaledDashboard() {
               autoPlay
               playsInline
               muted
-              // if we have a preview, hide the live video to ensure "previous images" never show as a background
               className={cn(
                 "absolute inset-0 w-full h-full object-contain transition-opacity duration-500",
                 preview
@@ -458,7 +501,6 @@ export default function UpscaledDashboard() {
                 src={preview}
                 alt="Captured material"
                 className="absolute inset-0 w-full h-full object-contain z-20"
-                // use a unique key so React does not try to reuse an older image node
                 key={preview.slice(0, 32)}
               />
             )}
@@ -491,7 +533,6 @@ export default function UpscaledDashboard() {
               {/* Center Status / Errors */}
               <div className="flex-1 flex flex-col items-center justify-center text-center">
                 <AnimatePresence mode="wait">
-                  {/* 1. ACTUAL ERROR (System/Technical Failure) */}
                   {error && error.title !== "Nothing to Recycle" ? (
                     <motion.div
                       key="error"
@@ -501,19 +542,14 @@ export default function UpscaledDashboard() {
                       className="bg-red-500/95 backdrop-blur-md p-6 rounded-3xl w-full max-w-[85%] shadow-2xl border border-red-400"
                     >
                       <AlertCircle className="w-10 h-10 text-white mx-auto mb-3" />
-                      <h3 className="text-white font-bold mb-1">
-                        {error.title}
-                      </h3>
-                      <p className="text-red-100 text-sm mb-4">
-                        {error.message}
-                      </p>
+                      <h3 className="text-white font-bold mb-1">{error.title}</h3>
+                      <p className="text-red-100 text-sm mb-4">{error.message}</p>
                       <div className="flex flex-col gap-2">
                         <Button
                           onClick={startCamera}
                           className="bg-white text-red-600 w-full rounded-xl hover:bg-red-50"
                         >
-                          <RefreshCcw className="w-4 h-4 mr-2" /> Try Camera
-                          Again
+                          <RefreshCcw className="w-4 h-4 mr-2" /> Try Camera Again
                         </Button>
                         <Button
                           onClick={() => fileInputRef.current?.click()}
@@ -524,8 +560,7 @@ export default function UpscaledDashboard() {
                         </Button>
                       </div>
                     </motion.div>
-                  ) : /* 2. NO WASTE DETECTED (Clean Scene) */
-                  error && error.title === "Nothing to Recycle" ? (
+                  ) : error && error.title === "Nothing to Recycle" ? (
                     <motion.div
                       key="no-waste"
                       initial={{ y: 20, opacity: 0 }}
@@ -538,12 +573,8 @@ export default function UpscaledDashboard() {
                           <Globe2 className="w-8 h-8 text-white" />
                         </div>
                       </div>
-                      <h3 className="text-white font-bold text-lg mb-1">
-                        {error.title}
-                      </h3>
-                      <p className="text-slate-300 text-sm mb-6 leading-relaxed">
-                        {error.message}
-                      </p>
+                      <h3 className="text-white font-bold text-lg mb-1">{error.title}</h3>
+                      <p className="text-slate-300 text-sm mb-6 leading-relaxed">{error.message}</p>
                       <Button
                         onClick={resetScanner}
                         className="w-full bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl border-b-4 border-indigo-800 active:border-b-0 transition-all"
@@ -551,8 +582,7 @@ export default function UpscaledDashboard() {
                         Scan Again
                       </Button>
                     </motion.div>
-                  ) : /* 3. UPLOADING / ANALYZING */
-                  isUploading ? (
+                  ) : isUploading ? (
                     <motion.div
                       key="uploading"
                       initial={{ opacity: 0, scale: 0.8 }}
@@ -564,8 +594,7 @@ export default function UpscaledDashboard() {
                         <div className="absolute inset-0 blur-xl bg-emerald-500/30 animate-pulse" />
                       </div>
                     </motion.div>
-                  ) : /* 4. SUCCESSFUL IDENTIFICATION */
-                  predictions ? (
+                  ) : predictions ? (
                     <motion.div
                       key="result"
                       initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -601,10 +630,7 @@ export default function UpscaledDashboard() {
                       </Button>
                     </motion.div>
                   ) : (
-                    /* 5. IDLE STATE */
-                    !isCameraActive &&
-                    !isStartingCamera &&
-                    !preview && (
+                    !isCameraActive && !isStartingCamera && !preview && (
                       <motion.div
                         key="idle"
                         initial={{ opacity: 0 }}
@@ -680,12 +706,10 @@ export default function UpscaledDashboard() {
             </div>
           </Card>
 
-         
         </div>
 
         {/* RIGHT COLUMN: INTERACTIVE INSIGHTS */}
         <div className="lg:col-span-7 space-y-8">
-          {/* ... [Right Column Content - unchanged] ... */}
           <section>
             <div className="flex items-center justify-between mb-4 px-2">
               <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-slate-400">
@@ -696,24 +720,9 @@ export default function UpscaledDashboard() {
               </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <ImpactCard
-                icon={CloudRain}
-                value={`${impactData.co2}kg`}
-                label="CO₂ Offset"
-                theme="blue"
-              />
-              <ImpactCard
-                icon={Droplets}
-                value={`${impactData.water}L`}
-                label="Water Saved"
-                theme="cyan"
-              />
-              <ImpactCard
-                icon={Zap}
-                value={`${impactData.energy}h`}
-                label="Energy Saved"
-                theme="amber"
-              />
+              <ImpactCard icon={CloudRain} value={`${impactData.co2}kg`} label="CO₂ Offset" theme="blue" />
+              <ImpactCard icon={Droplets} value={`${impactData.water}L`} label="Water Saved" theme="cyan" />
+              <ImpactCard icon={Zap} value={`${impactData.energy}h`} label="Energy Saved" theme="amber" />
             </div>
           </section>
 
@@ -754,9 +763,7 @@ export default function UpscaledDashboard() {
                       <div className="flex items-start gap-3">
                         <Info className="w-4 h-4 text-emerald-600 mt-1 flex-shrink-0" />
                         <div>
-                          <p className="text-xs font-bold text-emerald-900 uppercase mb-1">
-                            Pro Tip
-                          </p>
+                          <p className="text-xs font-bold text-emerald-900 uppercase mb-1">Pro Tip</p>
                           <p className="text-sm text-emerald-800 leading-relaxed">
                             {MATERIAL_TIPS[activeMaterial].tip}
                           </p>
@@ -780,18 +787,8 @@ export default function UpscaledDashboard() {
           </section>
 
           <div className="grid grid-cols-2 gap-4">
-            <BentoStat
-              icon={Star}
-              label="Total Score"
-              value={stats?.ecoScore?.toLocaleString() || "0"}
-              color="violet"
-            />
-            <BentoStat
-              icon={Flame}
-              label="Daily Streak"
-              value={`${stats?.streak || 0} Days`}
-              color="orange"
-            />
+            <BentoStat icon={Star} label="Total Score" value={stats?.ecoScore?.toLocaleString() || "0"} color="violet" />
+            <BentoStat icon={Flame} label="Daily Streak" value={`${stats?.streak || 0} Days`} color="orange" />
           </div>
         </div>
       </main>
@@ -812,9 +809,7 @@ function BentoStat({ icon: Icon, label, value, color }: any) {
         <Icon className="w-5 h-5" />
       </div>
       <div>
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-          {label}
-        </p>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</p>
         <p className="text-xl font-black">{value}</p>
       </div>
     </Card>
@@ -829,18 +824,11 @@ function ImpactCard({ icon: Icon, value, label, theme }: any) {
   };
   return (
     <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-      <div
-        className={cn(
-          "w-10 h-10 rounded-xl flex items-center justify-center mb-4 border transition-transform group-hover:scale-110",
-          themes[theme],
-        )}
-      >
+      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-4 border transition-transform group-hover:scale-110", themes[theme])}>
         <Icon className="w-5 h-5" />
       </div>
       <p className="text-2xl font-black text-slate-900">{value}</p>
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-        {label}
-      </p>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</p>
     </div>
   );
 }
