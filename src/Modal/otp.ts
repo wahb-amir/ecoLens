@@ -27,17 +27,26 @@ export interface OtpModel extends Model<IOtp> {
   createForUser(
     userId: mongoose.Types.ObjectId | string,
     type?: "email_verification" | "password_reset",
-    options?: { length?: number; ttlSeconds?: number; expiresAt?: Date }
+    options?: { length?: number; ttlSeconds?: number; expiresAt?: Date },
   ): Promise<string>;
 
   verifyForUser(
     userId: mongoose.Types.ObjectId | string,
     candidateOtp: string | number,
     type?: "email_verification" | "password_reset",
-    options?: { maxAttempts?: number }
-  ): Promise<{ ok: true } | { ok: false; reason: "no_otp" | "expired" | "invalid" | "too_many_attempts" }>;
+    options?: { maxAttempts?: number },
+  ): Promise<
+    | { ok: true }
+    | {
+        ok: false;
+        reason: "no_otp" | "expired" | "invalid" | "too_many_attempts";
+      }
+  >;
 
-  clearForUser(userId: mongoose.Types.ObjectId | string, type?: string | null): Promise<void>;
+  clearForUser(
+    userId: mongoose.Types.ObjectId | string,
+    type?: string | null,
+  ): Promise<void>;
 }
 
 // ---------------- Schema ----------------
@@ -61,7 +70,7 @@ const otpSchema = new Schema<IOtp, OtpModel>(
   },
   {
     timestamps: false,
-  }
+  },
 );
 
 // Indexes
@@ -73,17 +82,19 @@ otpSchema.statics.createForUser = async function (
   this: OtpModel,
   userId: mongoose.Types.ObjectId | string,
   type: "email_verification" | "password_reset" = "email_verification",
-  options: { length?: number; ttlSeconds?: number; expiresAt?: Date } = {}
+  options: { length?: number; ttlSeconds?: number; expiresAt?: Date } = {},
 ): Promise<string> {
   const length = options.length ?? OTP_LENGTH;
   const otp = generateNumericOtp(length);
   const codeHash = hashOtp(otp);
-  const expiresAt = options.expiresAt ?? new Date(Date.now() + ((options.ttlSeconds ?? OTP_TTL_SECONDS) * 1000));
+  const expiresAt =
+    options.expiresAt ??
+    new Date(Date.now() + (options.ttlSeconds ?? OTP_TTL_SECONDS) * 1000);
 
   await this.findOneAndUpdate(
     { userId, type },
     { codeHash, expiresAt, attempts: 0 },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { upsert: true, new: true, setDefaultsOnInsert: true },
   ).exec();
 
   return otp;
@@ -94,8 +105,14 @@ otpSchema.statics.verifyForUser = async function (
   userId: mongoose.Types.ObjectId | string,
   candidateOtp: string | number,
   type: "email_verification" | "password_reset" = "email_verification",
-  options: { maxAttempts?: number } = {}
-): Promise<{ ok: true } | { ok: false; reason: "no_otp" | "expired" | "invalid" | "too_many_attempts" }> {
+  options: { maxAttempts?: number } = {},
+): Promise<
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "no_otp" | "expired" | "invalid" | "too_many_attempts";
+    }
+> {
   const maxAttempts = options.maxAttempts ?? 10;
   const record = await this.findOne({ userId, type }).exec();
   if (!record) return { ok: false, reason: "no_otp" };
@@ -124,7 +141,7 @@ otpSchema.statics.verifyForUser = async function (
 otpSchema.statics.clearForUser = async function (
   this: OtpModel,
   userId: mongoose.Types.ObjectId | string,
-  type: string | null = null
+  type: string | null = null,
 ): Promise<void> {
   const q: Record<string, unknown> = { userId };
   if (type) q.type = type;
@@ -133,6 +150,7 @@ otpSchema.statics.clearForUser = async function (
 
 // ---------------- Export model ----------------
 const OtpModel =
-  (mongoose.models.Otp as OtpModel) || mongoose.model<IOtp, OtpModel>("Otp", otpSchema);
+  (mongoose.models.Otp as OtpModel) ||
+  mongoose.model<IOtp, OtpModel>("Otp", otpSchema);
 
 export default OtpModel;

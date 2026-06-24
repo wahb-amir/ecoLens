@@ -36,52 +36,78 @@ export async function POST(req: Request): Promise<Response> {
     if (!body) {
       return NextResponse.json(
         { error: "Invalid JSON", reason: "invalid_json" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const { otp: otpRaw, email: emailFromBody } = body;
 
-    if (!otpRaw || typeof otpRaw !== "string" || !/^\d{6}$/.test(otpRaw.trim())) {
+    if (
+      !otpRaw ||
+      typeof otpRaw !== "string" ||
+      !/^\d{6}$/.test(otpRaw.trim())
+    ) {
       return NextResponse.json(
-        { error: "OTP is required and must be a 6-digit string", reason: "invalid_otp_format" },
-        { status: 400 }
+        {
+          error: "OTP is required and must be a 6-digit string",
+          reason: "invalid_otp_format",
+        },
+        { status: 400 },
       );
     }
     const otpValue = otpRaw.trim();
 
     // Resolve user: prefer verificationToken cookie, fallback to email in body
     let user: HydratedDocument<any> | null = null;
-    const cookieStore =await cookies();
+    const cookieStore = await cookies();
     const tokenCookie = cookieStore.get("verificationToken")?.value;
 
     if (tokenCookie) {
       const decoded = verifyVerificationToken(tokenCookie);
       if (!decoded || !decoded.uid) {
         return NextResponse.json(
-          { error: "Invalid verification token", reason: "invalid_verification_token" },
-          { status: 401 }
+          {
+            error: "Invalid verification token",
+            reason: "invalid_verification_token",
+          },
+          { status: 401 },
         );
       }
       user = await User.findById(decoded.uid).exec();
     } else if (emailFromBody && typeof emailFromBody === "string") {
-      user = await User.findOne({ email: (emailFromBody as string).toLowerCase().trim() }).exec();
+      user = await User.findOne({
+        email: (emailFromBody as string).toLowerCase().trim(),
+      }).exec();
     } else {
       return NextResponse.json(
-        { error: "No verification token or email provided", reason: "missing_identifier" },
-        { status: 400 }
+        {
+          error: "No verification token or email provided",
+          reason: "missing_identifier",
+        },
+        { status: 400 },
       );
     }
 
     if (!user) {
-      return NextResponse.json({ error: "User not found", reason: "user_not_found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "User not found", reason: "user_not_found" },
+        { status: 404 },
+      );
     }
 
     const MAX_ATTEMPTS = 10;
-    const otpRecord = await Otp.findOne({ userId: user._id, type: "email_verification" }).exec();
+    const otpRecord = await Otp.findOne({
+      userId: user._id,
+      type: "email_verification",
+    }).exec();
 
     let verificationOk = false;
-    let reason: "not_set" | "expired" | "invalid" | "too_many_attempts" | undefined = "invalid";
+    let reason:
+      | "not_set"
+      | "expired"
+      | "invalid"
+      | "too_many_attempts"
+      | undefined = "invalid";
 
     if (!otpRecord) {
       reason = "not_set";
@@ -116,7 +142,10 @@ export async function POST(req: Request): Promise<Response> {
           } else {
             // incorrect: increment attempts
             try {
-              await Otp.updateOne({ _id: otpRecord._id }, { $inc: { attempts: 1 } }).exec();
+              await Otp.updateOne(
+                { _id: otpRecord._id },
+                { $inc: { attempts: 1 } },
+              ).exec();
             } catch (err) {
               console.error("Failed to increment OTP attempts:", err);
             }
@@ -126,7 +155,7 @@ export async function POST(req: Request): Promise<Response> {
           console.error("Error while comparing OTP hashes:", err);
           return NextResponse.json(
             { error: "Internal Server Error", reason: "server_error" },
-            { status: 500 }
+            { status: 500 },
           );
         }
       }
@@ -135,21 +164,36 @@ export async function POST(req: Request): Promise<Response> {
     // Map reasons -> HTTP status + payload
     if (!verificationOk) {
       if (reason === "expired") {
-        return NextResponse.json({ error: "OTP expired", reason: "expired" }, { status: 410 });
+        return NextResponse.json(
+          { error: "OTP expired", reason: "expired" },
+          { status: 410 },
+        );
       }
       if (reason === "invalid") {
-        return NextResponse.json({ error: "Incorrect OTP", reason: "invalid" }, { status: 401 });
+        return NextResponse.json(
+          { error: "Incorrect OTP", reason: "invalid" },
+          { status: 401 },
+        );
       }
       if (reason === "not_set") {
-        return NextResponse.json({ error: "No OTP issued for this user", reason: "not_set" }, { status: 400 });
+        return NextResponse.json(
+          { error: "No OTP issued for this user", reason: "not_set" },
+          { status: 400 },
+        );
       }
       if (reason === "too_many_attempts") {
         return NextResponse.json(
-          { error: "Too many attempts. A new OTP is required.", reason: "too_many_attempts" },
-          { status: 429 }
+          {
+            error: "Too many attempts. A new OTP is required.",
+            reason: "too_many_attempts",
+          },
+          { status: 429 },
         );
       }
-      return NextResponse.json({ error: "OTP verification failed", reason: "failed" }, { status: 400 });
+      return NextResponse.json(
+        { error: "OTP verification failed", reason: "failed" },
+        { status: 400 },
+      );
     }
 
     // OTP valid -> finalize verification
@@ -162,7 +206,10 @@ export async function POST(req: Request): Promise<Response> {
 
     // Ensure any existing OTP records for this user/type are removed (best-effort)
     try {
-      await Otp.deleteMany({ userId: user._id, type: "email_verification" }).exec();
+      await Otp.deleteMany({
+        userId: user._id,
+        type: "email_verification",
+      }).exec();
     } catch (err) {
       console.error("Failed to remove OTP records:", err);
     }
@@ -180,14 +227,18 @@ export async function POST(req: Request): Promise<Response> {
           role: (user as any).role ?? "user",
         },
       },
-      { status: 200 }
+      { status: 200 },
     );
 
     // Access token: short lived (15 minutes)
     res.cookies.set("access_token", accessToken, cookieOpts(15 * 60 * 1000)); // ms -> maxAge seconds
 
     // Refresh token: long lived (7 days)
-    res.cookies.set("refresh_token", refreshToken, cookieOpts(7 * 24 * 60 * 60 * 1000));
+    res.cookies.set(
+      "refresh_token",
+      refreshToken,
+      cookieOpts(7 * 24 * 60 * 60 * 1000),
+    );
 
     // Clear verificationToken cookie (set to empty + maxAge 0)
     res.cookies.set("verificationToken", "", { path: "/", maxAge: 0 });
@@ -195,6 +246,9 @@ export async function POST(req: Request): Promise<Response> {
     return res;
   } catch (e) {
     console.error("error in verify POST /:", e);
-    return NextResponse.json({ error: "Internal Server Error", reason: "server_error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error", reason: "server_error" },
+      { status: 500 },
+    );
   }
 }

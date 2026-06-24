@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import type { EcoStats } from '@/lib/types';
+import { useState, useCallback } from "react";
+import type { EcoStats } from "@/lib/types";
 
 const initialStats: EcoStats = {
   totalScans: 0,

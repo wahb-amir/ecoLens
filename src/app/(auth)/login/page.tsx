@@ -48,7 +48,7 @@ export default function LoginPage() {
       });
 
       setTimeout(() => {
-        console.log(data)
+        console.log(data);
         if (
           data.reason === "pending_verification" ||
           data.reason === "otp_sent"
@@ -133,7 +133,6 @@ export default function LoginPage() {
             </>
           )}
         </Button>
-
 
         <p className="text-center text-sm text-slate-500">
           Don't have an account?{" "}

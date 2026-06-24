@@ -64,7 +64,9 @@ function ResetPasswordForm() {
           router.push("/login?reset=success");
         }, 1500);
       } else {
-        toast.error(data.error || "Failed to reset password. Link may be expired.");
+        toast.error(
+          data.error || "Failed to reset password. Link may be expired.",
+        );
         setIsLoading(false);
       }
     } catch (err) {
@@ -89,7 +91,9 @@ function ResetPasswordForm() {
               className="pl-10 pr-10 h-11"
               placeholder="••••••••"
               value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, password: e.target.value })
+              }
               required
             />
             <button
@@ -97,7 +101,11 @@ function ResetPasswordForm() {
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
             >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </button>
           </div>
         </div>
@@ -112,7 +120,9 @@ function ResetPasswordForm() {
               className="pl-10 h-11"
               placeholder="••••••••"
               value={formData.confirmPassword}
-              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, confirmPassword: e.target.value })
+              }
               required
             />
           </div>
@@ -147,7 +157,7 @@ function ResetPasswordForm() {
 // 2. Export the page wrapped in Suspense
 export default function ResetPasswordPage() {
   return (
-    <Suspense 
+    <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-white">
           <Loader2 className="animate-spin h-8 w-8 text-slate-400" />

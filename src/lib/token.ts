@@ -13,14 +13,23 @@ import jwt from "jsonwebtoken";
  */
 
 /* ---------- minimal typed wrappers around jsonwebtoken ---------- */
-type JwtSignFn = (payload: string | object | Buffer, secret: string, options?: { expiresIn?: string | number }) => string;
+type JwtSignFn = (
+  payload: string | object | Buffer,
+  secret: string,
+  options?: { expiresIn?: string | number },
+) => string;
 type JwtVerifyFn = (token: string, secret: string) => any;
 
 const jwtSign = (jwt as unknown as { sign: JwtSignFn }).sign;
 const jwtVerify = (jwt as unknown as { verify: JwtVerifyFn }).verify;
 
 /* ---------- env helpers (fail fast in prod) ---------- */
-function getEnv(name: "ACCESS_TOKEN_SECRET" | "REFRESH_TOKEN_SECRET" | "VERIFICATION_TOKEN_SECRET"): string {
+function getEnv(
+  name:
+    | "ACCESS_TOKEN_SECRET"
+    | "REFRESH_TOKEN_SECRET"
+    | "VERIFICATION_TOKEN_SECRET",
+): string {
   const v = process.env[name];
   if (!v || typeof v !== "string" || v.length === 0) {
     // Fail fast: missing secrets are a critical misconfiguration
@@ -63,7 +72,9 @@ export function verifyAccessToken(token: string): TokenPayload | null {
   try {
     const secret = getEnv("ACCESS_TOKEN_SECRET");
     const decoded = jwtVerify(token, secret);
-    return typeof decoded === "object" && decoded !== null ? (decoded as TokenPayload) : null;
+    return typeof decoded === "object" && decoded !== null
+      ? (decoded as TokenPayload)
+      : null;
   } catch {
     return null;
   }
@@ -73,7 +84,9 @@ export function verifyRefreshToken(token: string): TokenPayload | null {
   try {
     const secret = getEnv("REFRESH_TOKEN_SECRET");
     const decoded = jwtVerify(token, secret);
-    return typeof decoded === "object" && decoded !== null ? (decoded as TokenPayload) : null;
+    return typeof decoded === "object" && decoded !== null
+      ? (decoded as TokenPayload)
+      : null;
   } catch {
     return null;
   }
@@ -83,7 +96,9 @@ export function verifyVerificationToken(token: string): TokenPayload | null {
   try {
     const secret = getEnv("VERIFICATION_TOKEN_SECRET");
     const decoded = jwtVerify(token, secret);
-    return typeof decoded === "object" && decoded !== null ? (decoded as TokenPayload) : null;
+    return typeof decoded === "object" && decoded !== null
+      ? (decoded as TokenPayload)
+      : null;
   } catch {
     return null;
   }
@@ -102,8 +117,11 @@ export function hashOtp(otp: string | number): string {
 }
 
 export function verifyOtp(
-  user: { verificationOtp?: { codeHash: string; expiresAt: Date } | null } | null | undefined,
-  otp: string | number
+  user:
+    | { verificationOtp?: { codeHash: string; expiresAt: Date } | null }
+    | null
+    | undefined,
+  otp: string | number,
 ): boolean {
   if (!user || !user.verificationOtp) return false;
 
@@ -114,7 +132,9 @@ export function verifyOtp(
 }
 
 /* ---------- rotate tokens ---------- */
-export async function rotateTokens(refreshToken?: string | null): Promise<RotateResult> {
+export async function rotateTokens(
+  refreshToken?: string | null,
+): Promise<RotateResult> {
   if (!refreshToken) return null;
 
   try {

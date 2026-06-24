@@ -96,24 +96,25 @@ function LeftPanel({ onLogoClick }: { onLogoClick: () => void }) {
       paragraph:
         "Join the network — track your impact, earn badges, and help protect our oceans and air.",
     },
-    "/verify-otp": { // Updated to match your registration OTP route name
+    "/verify-otp": {
+      // Updated to match your registration OTP route name
       heading: "Secure your\nConnection.",
       paragraph:
         "Enter the code we sent to confirm your identity and establish a secure link.",
     },
     "/forgot-password": {
       heading: "Recover your\nAccess.",
-      paragraph: 
+      paragraph:
         "Initiate credential recovery. We'll verify your identity via an encrypted 6-digit transmission.",
     },
     "/forgot-password/verify": {
       heading: "Identity\nVerification.",
-      paragraph: 
+      paragraph:
         "Enter the unique security code sent to your inbox to unlock your account recovery session.",
     },
     "/forgot-password/reset": {
       heading: "Update your\nCredentials.",
-      paragraph: 
+      paragraph:
         "Establish a new, high-entropy password to secure your environmental data and impact history.",
     },
   };

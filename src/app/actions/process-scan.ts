@@ -1,12 +1,12 @@
-'use server';
+"use server";
 
-import mongoose from 'mongoose';
-import connectToDb from '@/lib/mongo';
-import Scan from '@/Modal/scan';
-import User from '@/Modal/user';
+import mongoose from "mongoose";
+import connectToDb from "@/lib/mongo";
+import Scan from "@/Modal/scan";
+import User from "@/Modal/user";
 
-import { WASTE_POINTS, labelToCategory } from '@/lib/eco-points';
-import { revalidatePath } from 'next/cache';
+import { WASTE_POINTS, labelToCategory } from "@/lib/eco-points";
+import { revalidatePath } from "next/cache";
 
 interface ScanPayload {
   userId: string;
@@ -17,7 +17,7 @@ interface ScanPayload {
 
 export async function processWasteScan(payload: ScanPayload) {
   await connectToDb();
-  
+
   // Start a session for the transaction
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -28,14 +28,19 @@ export async function processWasteScan(payload: ScanPayload) {
     const points = WASTE_POINTS[category] || 5;
 
     // 1. Create the Scan History entry
-    const newScan = await Scan.create([{
-      userId,
-      label,
-      confidence,
-      imageUrl,
-      pointsEarned: points,
-      metadata: { category, processedAt: new Date() }
-    }], { session });
+    const newScan = await Scan.create(
+      [
+        {
+          userId,
+          label,
+          confidence,
+          imageUrl,
+          pointsEarned: points,
+          metadata: { category, processedAt: new Date() },
+        },
+      ],
+      { session },
+    );
 
     // 2. Update User Stats & Streak
     // We use $inc to avoid "race conditions" where two scans happen at once
@@ -45,33 +50,35 @@ export async function processWasteScan(payload: ScanPayload) {
         $inc: {
           ecoScore: points,
           totalScans: 1,
-          [`categoryStats.${category}`]: 1
+          [`categoryStats.${category}`]: 1,
         },
       },
-      { session, new: true }
+      { session, new: true },
     );
 
     if (!updatedUser) throw new Error("User not found");
 
     // 3. Handle Streak Logic (using the method you defined in your model)
-    await updatedUser.updateStreak(); 
+    await updatedUser.updateStreak();
 
     // Commit all changes
     await session.commitTransaction();
-    
+
     // Purge the Next.js cache so the leaderboard reflects new scores immediately
-    revalidatePath('/leaderboard');
+    revalidatePath("/leaderboard");
 
-    return { 
-      success: true, 
-      pointsEarned: points, 
-      newTotal: updatedUser.ecoScore 
+    return {
+      success: true,
+      pointsEarned: points,
+      newTotal: updatedUser.ecoScore,
     };
-
   } catch (error) {
     await session.abortTransaction();
     console.error("Scan Processing Failed:", error);
-    return { success: false, error: "Transaction aborted. Data remains consistent." };
+    return {
+      success: false,
+      error: "Transaction aborted. Data remains consistent.",
+    };
   } finally {
     session.endSession();
   }

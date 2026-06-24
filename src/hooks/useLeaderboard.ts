@@ -1,4 +1,4 @@
-import useSWR, { KeyedMutator } from 'swr';
+import useSWR, { KeyedMutator } from "swr";
 
 export interface LeaderboardEntry {
   id: string;
@@ -9,7 +9,7 @@ export interface LeaderboardEntry {
   totalScans: number;
   isCurrentUser: boolean;
   streak: number;
-  trend: 'up' | 'down' | 'stable';
+  trend: "up" | "down" | "stable";
 }
 
 interface LeaderboardResponse {
@@ -23,12 +23,12 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 export function useLeaderboard(userId?: string) {
   // Pass the userId to the API so the backend can flag 'isCurrentUser'
   const { data, error, isLoading, mutate } = useSWR<LeaderboardResponse>(
-    userId ? `/api/leaderboard?userId=${userId}` : '/api/leaderboard',
+    userId ? `/api/leaderboard?userId=${userId}` : "/api/leaderboard",
     fetcher,
     {
-      refreshInterval: 60000, 
+      refreshInterval: 60000,
       revalidateOnFocus: true,
-    }
+    },
   );
 
   return {

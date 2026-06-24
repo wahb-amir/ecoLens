@@ -3,7 +3,14 @@
 import React, { useState, useEffect } from "react";
 import { motion, useSpring, useTransform } from "framer-motion";
 import { Card } from "@/components/ui/card";
-import { Wind, Cloud, Trash2, Globe, RefreshCw, LucideIcon } from "lucide-react";
+import {
+  Wind,
+  Cloud,
+  Trash2,
+  Globe,
+  RefreshCw,
+  LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // --- Strict Types ---
@@ -20,15 +27,21 @@ interface LiveStat {
   status: "syncing" | "nominal" | "degraded";
 }
 
-function AnimatedNumber({ value, precision = 2 }: { value: number; precision?: number }) {
+function AnimatedNumber({
+  value,
+  precision = 2,
+}: {
+  value: number;
+  precision?: number;
+}) {
   const spring = useSpring(value, { stiffness: 30, damping: 15 });
-  
+
   // Explicitly typing the transform output as a string for safety
-  const display = useTransform(spring, (current: number) => 
-    current.toLocaleString(undefined, { 
-      minimumFractionDigits: precision, 
-      maximumFractionDigits: precision 
-    })
+  const display = useTransform(spring, (current: number) =>
+    current.toLocaleString(undefined, {
+      minimumFractionDigits: precision,
+      maximumFractionDigits: precision,
+    }),
   );
 
   useEffect(() => {
@@ -41,7 +54,7 @@ function AnimatedNumber({ value, precision = 2 }: { value: number; precision?: n
 export default function LiveStatsSection() {
   const [timestamp, setTimestamp] = useState<string>("");
   const [isSyncing, setIsSyncing] = useState(true);
-  
+
   const [stats, setStats] = useState<LiveStat[]>([
     {
       id: "MLO-CO2",
@@ -87,10 +100,15 @@ export default function LiveStatsSection() {
     }, 1000);
 
     const jitter = setInterval(() => {
-      setStats(prev => prev.map(s => ({
-        ...s,
-        value: s.id === "PLASTIC-EST" ? s.value + Math.random() * 5 : s.value + (Math.random() - 0.5) * 0.01
-      })));
+      setStats((prev) =>
+        prev.map((s) => ({
+          ...s,
+          value:
+            s.id === "PLASTIC-EST"
+              ? s.value + Math.random() * 5
+              : s.value + (Math.random() - 0.5) * 0.01,
+        })),
+      );
     }, 3000);
 
     const syncTimer = setTimeout(() => setIsSyncing(false), 1500);
@@ -104,13 +122,21 @@ export default function LiveStatsSection() {
 
   // Handler for the Report Button
   const handleViewReport = () => {
-    window.open("https://www.ipcc.ch/report/ar6/syr/", "_blank", "noopener,noreferrer");
+    window.open(
+      "https://www.ipcc.ch/report/ar6/syr/",
+      "_blank",
+      "noopener,noreferrer",
+    );
   };
 
   return (
     <section className="relative w-full py-24 px-6 bg-[#fcfdfe] overflow-hidden border-y border-slate-100">
-      <div className="absolute inset-0 opacity-[0.015] pointer-events-none" 
-           style={{ backgroundImage: `linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)`, backgroundSize: '40px 40px' }} 
+      <div
+        className="absolute inset-0 opacity-[0.015] pointer-events-none"
+        style={{
+          backgroundImage: `linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)`,
+          backgroundSize: "40px 40px",
+        }}
       />
 
       <div className="max-w-6xl mx-auto relative">
@@ -121,7 +147,9 @@ export default function LiveStatsSection() {
                 Live Telemetry
               </div>
               <div className="h-[1px] w-12 bg-slate-200" />
-              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-tighter">System ID: ENVIRO-NET-04</span>
+              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-tighter">
+                System ID: ENVIRO-NET-04
+              </span>
             </div>
             <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter">
               Planetary <span className="text-emerald-500 italic">Vitals</span>
@@ -131,12 +159,21 @@ export default function LiveStatsSection() {
           <div className="flex flex-col items-end font-mono">
             <div className="flex items-center gap-4 bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
               <div className="text-right">
-                <p className="text-[10px] text-slate-400 uppercase font-bold">Network Clock</p>
-                <p className="text-lg font-black text-slate-800">{timestamp || "00:00:00"}</p>
+                <p className="text-[10px] text-slate-400 uppercase font-bold">
+                  Network Clock
+                </p>
+                <p className="text-lg font-black text-slate-800">
+                  {timestamp || "00:00:00"}
+                </p>
               </div>
               <div className="w-[1px] h-8 bg-slate-100" />
               <div className="flex items-center gap-2">
-                <div className={cn("w-2 h-2 rounded-full animate-pulse", isSyncing ? "bg-amber-500" : "bg-emerald-500")} />
+                <div
+                  className={cn(
+                    "w-2 h-2 rounded-full animate-pulse",
+                    isSyncing ? "bg-amber-500" : "bg-emerald-500",
+                  )}
+                />
                 <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
                   {isSyncing ? "Syncing..." : "Stream: Nominal"}
                 </span>
@@ -158,19 +195,28 @@ export default function LiveStatsSection() {
               >
                 <Card className="group relative bg-white border-slate-100 rounded-[2.5rem] p-8 hover:shadow-2xl hover:shadow-emerald-500/5 transition-all duration-500 overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-500/5 to-transparent h-[2px] w-full -translate-y-full group-hover:animate-[scanline_3s_linear_infinite] pointer-events-none" />
-                  
+
                   <div className="relative z-10">
                     <div className="flex justify-between items-start mb-10">
-                      <div className={cn(
-                        "p-4 rounded-2xl transition-transform group-hover:scale-110 duration-500",
-                        stat.color === 'emerald' ? 'bg-emerald-50 text-emerald-500' :
-                        stat.color === 'cyan' ? 'bg-cyan-50 text-cyan-500' : 'bg-rose-50 text-rose-500'
-                      )}>
+                      <div
+                        className={cn(
+                          "p-4 rounded-2xl transition-transform group-hover:scale-110 duration-500",
+                          stat.color === "emerald"
+                            ? "bg-emerald-50 text-emerald-500"
+                            : stat.color === "cyan"
+                              ? "bg-cyan-50 text-cyan-500"
+                              : "bg-rose-50 text-rose-500",
+                        )}
+                      >
                         <Icon size={24} />
                       </div>
                       <div className="text-right font-mono">
-                        <p className="text-[10px] font-black text-slate-300 uppercase leading-none mb-1">{stat.id}</p>
-                        <p className="text-[9px] text-slate-400">{stat.coordinates}</p>
+                        <p className="text-[10px] font-black text-slate-300 uppercase leading-none mb-1">
+                          {stat.id}
+                        </p>
+                        <p className="text-[9px] text-slate-400">
+                          {stat.coordinates}
+                        </p>
                       </div>
                     </div>
 
@@ -180,9 +226,9 @@ export default function LiveStatsSection() {
 
                     <div className="flex items-baseline gap-2 mb-8">
                       <span className="text-5xl font-black text-slate-900 tracking-tighter">
-                        <AnimatedNumber 
-                          value={stat.value} 
-                          precision={stat.id === "PLASTIC-EST" ? 0 : 2} 
+                        <AnimatedNumber
+                          value={stat.value}
+                          precision={stat.id === "PLASTIC-EST" ? 0 : 2}
                         />
                       </span>
                       <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">
@@ -196,29 +242,38 @@ export default function LiveStatsSection() {
                         <span className="text-emerald-500">99.2%</span>
                       </div>
                       <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
-                        <motion.div 
+                        <motion.div
                           initial={{ width: 0 }}
                           whileInView={{ width: "92%" }}
                           transition={{ duration: 1.5, ease: "easeOut" }}
-                          className={cn("h-full rounded-full", 
-                            stat.color === 'emerald' ? 'bg-emerald-500' :
-                            stat.color === 'cyan' ? 'bg-cyan-500' : 'bg-rose-500'
-                          )} 
+                          className={cn(
+                            "h-full rounded-full",
+                            stat.color === "emerald"
+                              ? "bg-emerald-500"
+                              : stat.color === "cyan"
+                                ? "bg-cyan-500"
+                                : "bg-rose-500",
+                          )}
                         />
                       </div>
                       <div className="flex items-center justify-between pt-2">
-                         <a 
-                          href={stat.sourceUrl} 
-                          target="_blank" 
+                        <a
+                          href={stat.sourceUrl}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="text-[10px] text-slate-400 hover:text-emerald-500 transition-colors underline decoration-slate-200 underline-offset-4"
-                         >
-                           {stat.source}
-                         </a>
-                         <div className="flex items-center gap-1.5">
-                           <RefreshCw size={10} className="text-slate-300 animate-[spin_3s_linear_infinite]" />
-                           <span className="text-[9px] text-slate-300 font-mono uppercase">Live Feed</span>
-                         </div>
+                        >
+                          {stat.source}
+                        </a>
+                        <div className="flex items-center gap-1.5">
+                          <RefreshCw
+                            size={10}
+                            className="text-slate-300 animate-[spin_3s_linear_infinite]"
+                          />
+                          <span className="text-[9px] text-slate-300 font-mono uppercase">
+                            Live Feed
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -228,7 +283,7 @@ export default function LiveStatsSection() {
           })}
         </div>
 
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           className="mt-12 p-6 rounded-3xl bg-slate-50 border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4"
@@ -238,10 +293,11 @@ export default function LiveStatsSection() {
               <Globe size={18} className="text-slate-400" />
             </div>
             <p className="text-sm text-slate-500 max-w-md">
-              Our telemetry network aggregates data from NASA, NOAA, and UNEP to provide a real-time snapshot of the planet's health.
+              Our telemetry network aggregates data from NASA, NOAA, and UNEP to
+              provide a real-time snapshot of the planet's health.
             </p>
           </div>
-          <button 
+          <button
             onClick={handleViewReport}
             className="px-6 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-600 hover:bg-slate-900 hover:text-white transition-all duration-300 shadow-sm active:scale-95"
           >

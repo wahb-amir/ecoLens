@@ -27,20 +27,24 @@ export async function POST(req: Request) {
     if (user.resetOtpExpiry) {
       const now = new Date();
       const expiry = new Date(user.resetOtpExpiry);
-      
-      // Calculate how long ago the code was sent. 
+
+      // Calculate how long ago the code was sent.
       // OTP is valid for 15m. If > 14m left, they just requested it.
       const msLeft = expiry.getTime() - now.getTime();
       const cooldownMs = 1 * 60 * 1000; // 1 minute cooldown
       const totalWindowMs = 15 * 60 * 1000;
-      
-      const isWithinCooldown = msLeft > (totalWindowMs - cooldownMs);
+
+      const isWithinCooldown = msLeft > totalWindowMs - cooldownMs;
 
       if (isWithinCooldown) {
-        const secondsToWait = Math.ceil((msLeft - (totalWindowMs - cooldownMs)) / 1000);
+        const secondsToWait = Math.ceil(
+          (msLeft - (totalWindowMs - cooldownMs)) / 1000,
+        );
         return NextResponse.json(
-          { error: `Please wait ${secondsToWait}s before requesting a new code.` },
-          { status: 429 } // Too Many Requests
+          {
+            error: `Please wait ${secondsToWait}s before requesting a new code.`,
+          },
+          { status: 429 }, // Too Many Requests
         );
       }
     }
@@ -53,7 +57,7 @@ export async function POST(req: Request) {
 
     // 3. Update User
     user.resetOtp = hashedOtp;
-    user.resetOtpExpiry = new Date(Date.now() + 15 * 60 * 1000); 
+    user.resetOtpExpiry = new Date(Date.now() + 15 * 60 * 1000);
     await user.save();
 
     // 4. Send Email

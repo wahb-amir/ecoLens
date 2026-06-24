@@ -8,10 +8,16 @@ export interface LeaderboardUser {
 }
 
 /**
- * Staff Engineer Tip: Define a strict Category type to prevent 
+ * Staff Engineer Tip: Define a strict Category type to prevent
  * "stringly-typed" errors across the codebase.
  */
-export type WasteCategory = 'plastic' | 'paper' | 'glass' | 'metal' | 'organic' | 'other';
+export type WasteCategory =
+  | "plastic"
+  | "paper"
+  | "glass"
+  | "metal"
+  | "organic"
+  | "other";
 
 export interface EcoStats {
   totalScans: number;
@@ -25,7 +31,7 @@ export interface EcoStats {
     organic: number;
     other: number;
   };
-  unlockedAchievements: string[]; 
+  unlockedAchievements: string[];
 }
 
 export interface Achievement {
@@ -35,7 +41,7 @@ export interface Achievement {
   // Simplified type for Lucide icons
   icon: LucideIcon;
   isUnlocked: (stats: EcoStats) => boolean;
-  type: 'totalScans' | 'ecoScore' | 'category' | 'streak';
+  type: "totalScans" | "ecoScore" | "category" | "streak";
   threshold: number;
   category?: WasteCategory;
 }

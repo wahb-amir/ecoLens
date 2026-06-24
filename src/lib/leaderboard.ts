@@ -1,4 +1,4 @@
-export type RankTrend = 'up' | 'down' | 'stable';
+export type RankTrend = "up" | "down" | "stable";
 
 export interface EcoUser {
   id: string;

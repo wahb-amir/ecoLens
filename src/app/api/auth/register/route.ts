@@ -70,7 +70,9 @@ export async function POST(req: Request): Promise<Response> {
     await session.startTransaction();
 
     // Check for existing user inside the transaction
-    const existing = await User.findOne({ email: email as string }).session(session).exec();
+    const existing = await User.findOne({ email: email as string })
+      .session(session)
+      .exec();
     if (existing) {
       await session.abortTransaction();
       return NextResponse.json(
@@ -84,7 +86,13 @@ export async function POST(req: Request): Promise<Response> {
     // Create the user document in the transaction
     // Note: create returns an array when passing array of docs
     const created = await User.create(
-      [{ name: name as string, email: email as string, password: hashedPassword }],
+      [
+        {
+          name: name as string,
+          email: email as string,
+          password: hashedPassword,
+        },
+      ],
       { session },
     );
     const user = (created && created[0]) as unknown as CreatedUser;

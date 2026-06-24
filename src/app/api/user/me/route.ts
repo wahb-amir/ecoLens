@@ -25,7 +25,7 @@ function cookieOptsSeconds(maxAgeSeconds: number) {
  */
 export async function GET(): Promise<Response> {
   try {
-    const cookieStore =await cookies();
+    const cookieStore = await cookies();
     const accessCookie = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value;
     const refreshCookie = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value;
 
@@ -52,11 +52,22 @@ export async function GET(): Promise<Response> {
       }
 
       // rotation succeeded -> set new cookies and return user
-      const res = NextResponse.json({ id: rotated.user?.id ?? null }, { status: 200 });
+      const res = NextResponse.json(
+        { id: rotated.user?.id ?? null },
+        { status: 200 },
+      );
 
       // choose cookie lifetimes to match your tokens: access=15m, refresh=7d (seconds)
-      res.cookies.set(ACCESS_TOKEN_COOKIE, rotated.accessToken, cookieOptsSeconds(15 * 60));
-      res.cookies.set(REFRESH_TOKEN_COOKIE, rotated.refreshToken, cookieOptsSeconds(7 * 24 * 60 * 60));
+      res.cookies.set(
+        ACCESS_TOKEN_COOKIE,
+        rotated.accessToken,
+        cookieOptsSeconds(15 * 60),
+      );
+      res.cookies.set(
+        REFRESH_TOKEN_COOKIE,
+        rotated.refreshToken,
+        cookieOptsSeconds(7 * 24 * 60 * 60),
+      );
 
       return res;
     }

@@ -128,14 +128,13 @@ export async function POST(req: Request) {
     const objectUserId = new Types.ObjectId(userId);
 
     const currentUser = await User.findById(objectUserId)
-      .select("lastScanDate streak achievements totalScans ecoScore categoryStats")
+      .select(
+        "lastScanDate streak achievements totalScans ecoScore categoryStats",
+      )
       .lean();
 
     const now = new Date();
-    const streakDecision = decideStreakUpdate(
-      currentUser?.lastScanDate,
-      now,
-    );
+    const streakDecision = decideStreakUpdate(currentUser?.lastScanDate, now);
 
     const updateQuery: any = {
       $inc: {
@@ -151,14 +150,17 @@ export async function POST(req: Request) {
 
     if (streakDecision.action === "increment") {
       updateQuery.$inc.streak = 1;
-    } else if (streakDecision.action === "reset" || streakDecision.action === "init") {
+    } else if (
+      streakDecision.action === "reset" ||
+      streakDecision.action === "init"
+    ) {
       updateQuery.$set.streak = streakDecision.newStreak ?? 1;
     }
 
     const updatedUser = await User.findOneAndUpdate(
       { _id: objectUserId },
       updateQuery,
-      { returnDocument: "after", upsert: true }
+      { returnDocument: "after", upsert: true },
     ).lean();
 
     if (!updatedUser) {

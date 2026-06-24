@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://eco.wahb.space
+
+# Sitemaps
+Sitemap: https://eco.wahb.space/sitemap.xml

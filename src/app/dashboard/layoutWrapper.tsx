@@ -19,11 +19,11 @@ export function ClientAuthWrapper({ children }: { children: ReactNode }) {
     if (!user) return;
 
     // 10 minutes in milliseconds
-    const TEN_MINUTES_MS = 10 * 60 * 1000; 
+    const TEN_MINUTES_MS = 10 * 60 * 1000;
 
     const intervalId = setInterval(async () => {
       console.log("Rotating access token...");
-      
+
       const success = await refreshTokens();
       if (!success) {
         console.error("Token rotation failed, redirecting to login...");

@@ -27,9 +27,12 @@ const containerVariants: Variants = {
 
 const itemVariants: Variants = {
   hidden: { y: 10, opacity: 0 },
-  visible: { y: 0, opacity: 1, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }, // shorter duration
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+  }, // shorter duration
 };
-
 
 const FeatureCard: React.FC<FeatureCardProps> = memo(function FeatureCard({
   icon: Icon,
@@ -43,17 +46,21 @@ const FeatureCard: React.FC<FeatureCardProps> = memo(function FeatureCard({
     ? {}
     : {
         variants: itemVariants,
-        whileHover: !isTouch ? { y: -6, transition: { duration: 0.18 } } : undefined,
+        whileHover: !isTouch
+          ? { y: -6, transition: { duration: 0.18 } }
+          : undefined,
       };
 
   const Container: any = disableAnimation ? "div" : motion.div;
 
-  const shadowClass = isTouch ? "" : "hover:shadow-[0_20px_40px_rgba(16,185,129,0.08)]";
+  const shadowClass = isTouch
+    ? ""
+    : "hover:shadow-[0_20px_40px_rgba(16,185,129,0.08)]";
   const glowClass = isTouch ? "" : "group-hover:opacity-100";
 
   return (
     <Container
-      {...motionProps}  // ✅ only pass framer-motion props when valid
+      {...motionProps} // ✅ only pass framer-motion props when valid
       className={`group relative overflow-hidden p-6 md:p-8 rounded-2xl border border-slate-200/60 bg-white/80 transition-all ${shadowClass} text-left`}
     >
       {/* Card Glow */}
@@ -64,7 +71,9 @@ const FeatureCard: React.FC<FeatureCardProps> = memo(function FeatureCard({
 
       <div
         className={`mb-4 inline-flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 text-emerald-600 ring-1 ring-emerald-100 transition-all ${
-          isTouch ? "" : "group-hover:from-emerald-500 group-hover:to-teal-600 group-hover:text-white"
+          isTouch
+            ? ""
+            : "group-hover:from-emerald-500 group-hover:to-teal-600 group-hover:text-white"
         }`}
       >
         <Icon className="w-5 h-5 md:w-6 md:h-6" />
@@ -76,8 +85,12 @@ const FeatureCard: React.FC<FeatureCardProps> = memo(function FeatureCard({
         </span>
       )}
 
-      <h4 className="text-sm font-bold text-slate-800 uppercase tracking-[0.12em] mb-2">{title}</h4>
-      <p className="text-[15px] text-slate-500 leading-relaxed font-normal">{description}</p>
+      <h4 className="text-sm font-bold text-slate-800 uppercase tracking-[0.12em] mb-2">
+        {title}
+      </h4>
+      <p className="text-[15px] text-slate-500 leading-relaxed font-normal">
+        {description}
+      </p>
     </Container>
   );
 });
@@ -109,7 +122,9 @@ export default function AboutSection() {
       setPrefersReducedMotion(mqMotion.matches);
       // disable animations for small screens OR coarse pointers OR reduced-motion
       setIsTouch(mqTouch.matches || mqSmall.matches);
-      setDisableAnimation(mqMotion.matches || mqTouch.matches || mqSmall.matches);
+      setDisableAnimation(
+        mqMotion.matches || mqTouch.matches || mqSmall.matches,
+      );
     };
 
     update();
@@ -163,15 +178,22 @@ export default function AboutSection() {
         {/* Header */}
         {/* use simpler structure and reduced shadows on touch */}
         <div className="max-w-4xl mx-auto text-center mb-16 md:mb-24">
-          <div className={`inline-flex items-center gap-3 px-3 py-1 rounded-full ${isTouch ? "bg-emerald-50/70" : "bg-emerald-50/80"} border border-emerald-100 text-emerald-700 text-[11px] font-bold uppercase tracking-[0.25em] mb-6`}>
+          <div
+            className={`inline-flex items-center gap-3 px-3 py-1 rounded-full ${isTouch ? "bg-emerald-50/70" : "bg-emerald-50/80"} border border-emerald-100 text-emerald-700 text-[11px] font-bold uppercase tracking-[0.25em] mb-6`}
+          >
             <span className="relative flex h-2 w-2">
-              {!isTouch && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />}
+              {!isTouch && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              )}
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
             </span>
             System Intelligence Ver // 2.0.4
           </div>
 
-          <h2 id="about-heading" className="text-3xl md:text-5xl lg:text-7xl font-extrabold text-slate-800 tracking-tight mb-6 leading-tight">
+          <h2
+            id="about-heading"
+            className="text-3xl md:text-5xl lg:text-7xl font-extrabold text-slate-800 tracking-tight mb-6 leading-tight"
+          >
             The Intelligence Behind <br />
             <span className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 bg-clip-text text-transparent italic">
               Sustainability.
@@ -180,7 +202,9 @@ export default function AboutSection() {
 
           <p className="text-base md:text-lg text-slate-500 leading-relaxed max-w-2xl mx-auto font-light">
             EcoLens isn’t just an interface. It’s a{" "}
-            <span className="text-slate-800 font-semibold px-1">high-fidelity telemetry engine</span>{" "}
+            <span className="text-slate-800 font-semibold px-1">
+              high-fidelity telemetry engine
+            </span>{" "}
             engineered to turn raw ecological data into actionable human impact.
           </p>
         </div>

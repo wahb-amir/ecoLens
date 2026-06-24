@@ -45,7 +45,9 @@ export async function POST(req: Request) {
     const normalizedEmail = email.trim().toLowerCase();
 
     // Find user
-    const user = await User.findOne({ email: normalizedEmail }) .select('+password').exec();
+    const user = await User.findOne({ email: normalizedEmail })
+      .select("+password")
+      .exec();
     // If user not found -> generic 401 (do not reveal existence)
     if (!user) {
       return NextResponse.json(
@@ -54,7 +56,6 @@ export async function POST(req: Request) {
       );
     }
 
-   
     if (!user.password) {
       return NextResponse.json(
         { message: "Invalid email or password" },

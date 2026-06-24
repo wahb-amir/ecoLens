@@ -1,20 +1,23 @@
-#  AI‑Powered Waste Classification & Gamified Environmental Impact
+# AI‑Powered Waste Classification & Gamified Environmental Impact
+
 **Website:** https://eco.wahb.space  
 **Repository:** `github.com/wahb-amir/ecolens`  
-**Status:** Ready (documentation)  
+**Status:** Ready (documentation)
 
 ---
 
 ## 🚀 TL;DR
+
 EcoLens turns everyday waste photos into measurable environmental impact. Users scan or upload waste, an AI classifies the material, and EcoLens calculates **CO₂ offset**, **water saved**, and **energy saved**. Gamified achievements, material-specific tips, and a global leaderboard drive sustained behavior change.
 
 ## 📸 Demo / Screenshots
 
-| Dashboard | Achievements | Leaderboard |
-| :--- | :--- | :--- |
+| Dashboard                                         | Achievements                                         | Leaderboard                                         |
+| :------------------------------------------------ | :--------------------------------------------------- | :-------------------------------------------------- |
 | <img src="screenshots/dashboard.png" width="300"> | <img src="screenshots/achievements.png" width="300"> | <img src="screenshots/leaderboard.png" width="300"> |
 
-*System Flow Diagram:* <img src="screenshots/flowchart.png" width="600">
+_System Flow Diagram:_ <img src="screenshots/flowchart.png" width="600">
+
 ## ✨ Key Features
 
 - **AI Classification (Camera & Upload)** — Detects plastic, metal, paper, glass, organic, and more; returns label + confidence.
@@ -27,6 +30,7 @@ EcoLens turns everyday waste photos into measurable environmental impact. Users 
 ---
 
 ## ⚙️ How It Works (End‑to‑end)
+
 1. **Scan / Upload:** User captures an image via mobile or desktop.
 2. **Predict:** Frontend sends `POST /api/predict` (with `access_token` cookie) to backend.
 3. **Inference:** Backend proxies image to the hosted ML service, receiving labels + confidences.
@@ -37,6 +41,7 @@ EcoLens turns everyday waste photos into measurable environmental impact. Users 
 ---
 
 ## 🏗️ Architecture & Stack
+
 - **Frontend:** Next.js, React, Tailwind CSS
 - **Backend:** Node.js, Next.js API routes (TypeScript), Express-style handlers where applicable
 - **ML Service:** Python (PyTorch / TensorFlow) or hosted Hugging Face Spaces endpoint
@@ -46,12 +51,14 @@ EcoLens turns everyday waste photos into measurable environmental impact. Users 
 
 ---
 
-# API Reference 
+# API Reference
+
 **Base URL:** `https://eco.wahb.space/api`
 
 > All endpoints use JSON. Auth is via `httpOnly` cookies unless otherwise noted.
 
 ### Common Auth Notes
+
 - Recommended cookie names: `access_token` (short-lived ~15m), `refresh_token` (long-lived ~7d), `verification_token` (OTP flow).
 - Tokens are set with `httpOnly` and `secure` flags in production. Use `sameSite: 'strict'`.
 - OTP TTL: 1 hour. Max OTP attempts: 10.
@@ -59,14 +66,21 @@ EcoLens turns everyday waste photos into measurable environmental impact. Users 
 ---
 
 ## `POST /api/auth/register`
+
 Create a new user and start email verification (sends OTP).
 
 **Request**
+
 ```json
-{ "name": "Wahb Amir", "email": "wahb@example.com", "password": "supersecurepassword" }
+{
+  "name": "Wahb Amir",
+  "email": "wahb@example.com",
+  "password": "supersecurepassword"
+}
 ```
 
 **Responses**
+
 - `201 Created` — account created, verification OTP sent. Cookie set: `verificationToken` (httpOnly, 1h).
   ```json
   { "msg": "Account created. Verification code sent to wahb@example.com" }
@@ -80,44 +94,57 @@ Create a new user and start email verification (sends OTP).
 ---
 
 ## `POST /api/auth/login`
+
 Authenticate existing user. Handles verified and unverified flows.
 
 **Request**
+
 ```json
 { "email": "wahb@example.com", "password": "supersecurepassword" }
 ```
 
 **Behavior**
+
 - Invalid credentials → `401 Invalid email or password` (generic to prevent enumeration).
 - If unverified: triggers OTP flow (returns `200` with `pending_verification` or `otp_sent`).
 - If verified: issues `access_token` & `refresh_token` cookies.
 
 **Success**
+
 ```json
 { "success": true, "message": "Login successful" }
 ```
 
 **Cookie policy (prod)**
+
 - `access_token`: `httpOnly`, `secure`, `sameSite: 'strict'`, expires ≈ 15 minutes
 - `refresh_token`: `httpOnly`, `secure`, `sameSite: 'strict'`, expires ≈ 7 days
 
 ---
 
 ## `POST /api/auth/verify`
+
 Verify email OTP. Uses `verificationToken` cookie if present, or `email` + `otp` in body.
 
 **Request**
+
 ```json
 { "otp": "123456" }
 ```
 
 **Success (200)**
+
 - Marks user `isVerified = true`, deletes OTP record(s), issues auth cookies, clears `verificationToken`.
+
 ```json
-{ "message": "Account verified and logged in", "user": { "id": "...", "email": "...", "role": "user" } }
+{
+  "message": "Account verified and logged in",
+  "user": { "id": "...", "email": "...", "role": "user" }
+}
 ```
 
 **Errors**
+
 - `400` invalid body
 - `401` incorrect OTP
 - `410` OTP expired
@@ -130,38 +157,54 @@ Verify email OTP. Uses `verificationToken` cookie if present, or `email` + `otp`
 ---
 
 ## `GET /api/auth/logout`
+
 Terminate session. Clears relevant cookies and sets `Clear-Site-Data` headers.
 
 **Response (200)**
+
 ```json
-{ "success": true, "message": "Session terminated successfully", "timestamp": "2026-02-24T12:34:56.789Z" }
+{
+  "success": true,
+  "message": "Session terminated successfully",
+  "timestamp": "2026-02-24T12:34:56.789Z"
+}
 ```
 
 ---
 
 ## `POST /api/auth/password/forgot`
+
 Request password reset OTP.
 
 **Request**
+
 ```json
 { "email": "wahb@example.com" }
 ```
 
 **Responses**
+
 - `200` OTP sent (or generic 200 to avoid enumeration)
 - `500` email send error
 
 ---
 
 ## `POST /api/auth/password/reset`
+
 Submit OTP + new password.
 
 **Request**
+
 ```json
-{ "email":"wahb@example.com", "otp":"123456", "newPassword":"newStrongPassword" }
+{
+  "email": "wahb@example.com",
+  "otp": "123456",
+  "newPassword": "newStrongPassword"
+}
 ```
 
 **Responses**
+
 - `200` password reset successful
 - `400/401/410/429` OTP related errors
 - `500` server error
@@ -169,30 +212,45 @@ Submit OTP + new password.
 ---
 
 ## `GET /api/leaderboard`
+
 Get top users (verified-only) and optionally current user's rank.
 
 **Query**
+
 - `userId` (optional) — compute rank for this user if not in top N
 
 **Response (200)**
+
 ```json
-{ "success": true, "data": [ /* top list */ ], "currentUser": { /* optional */ } }
+{
+  "success": true,
+  "data": [
+    /* top list */
+  ],
+  "currentUser": {
+    /* optional */
+  }
+}
 ```
 
 **Notes**
+
 - Only verified users appear on global leaderboard. If a supplied `userId` is outside top results, service returns computed rank.
 
 ---
 
 ## `POST /api/predict`
+
 Run AI prediction for an image. **Auth required** (`access_token`).
 
 **Request**
+
 ```json
 { "dataUrl": "data:image/jpeg;base64,..." }
 ```
 
 **Valid match (Success)**
+
 - Backend proxies to inference service, maps label → category, computes `pointsEarned = round(confidence * 20)`, updates user & achievements, creates a `Scan`.
 
 ```json
@@ -201,17 +259,28 @@ Run AI prediction for an image. **Auth required** (`access_token`).
   "scanId": "624f...",
   "pointsEarned": 18,
   "newAchievements": ["waste_warrior"],
-  "userStats": { "streak": 3, "totalScans": 51, "ecoScore": 680, "achievementsCount": 5 },
+  "userStats": {
+    "streak": 3,
+    "totalScans": 51,
+    "ecoScore": 680,
+    "achievementsCount": 5
+  },
   "inference_time": 1.234
 }
 ```
 
 **No confident match**
+
 ```json
-{ "predictions": [{ "label": "unknown", "prob": 0.20 }], "noMatch": true, "message": "No confident match" }
+{
+  "predictions": [{ "label": "unknown", "prob": 0.2 }],
+  "noMatch": true,
+  "message": "No confident match"
+}
 ```
 
 **Errors**
+
 - `401` missing/invalid token
 - `400` missing `dataUrl`
 - `422` model failed to identify
@@ -219,10 +288,12 @@ Run AI prediction for an image. **Auth required** (`access_token`).
 
 ---
 
-## `GET /api/user`  (aka `/api/user/me`)
+## `GET /api/user` (aka `/api/user/me`)
+
 Check auth & optionally rotate tokens with `refresh_token`.
 
 **Response (200)**
+
 ```json
 { "id": "userId" } // or null if unauthenticated
 ```
@@ -230,16 +301,25 @@ Check auth & optionally rotate tokens with `refresh_token`.
 ---
 
 ## `GET /api/user/stats`
+
 Return authenticated user's dashboard stats.
 
 **Response**
+
 ```json
 {
   "totalScans": 48,
   "ecoScore": 663,
   "streak": 1,
-  "categoryStats": { "plastic":9, "paper":12, "glass":3, "metal":2, "organic":0, "other":0 },
-  "unlockedAchievements": ["first_step","recycling_rookie"]
+  "categoryStats": {
+    "plastic": 9,
+    "paper": 12,
+    "glass": 3,
+    "metal": 2,
+    "organic": 0,
+    "other": 0
+  },
+  "unlockedAchievements": ["first_step", "recycling_rookie"]
 }
 ```
 
@@ -250,6 +330,7 @@ Return authenticated user's dashboard stats.
 ## DB Schemas (summary)
 
 **users**
+
 ```json
 {
   "name": "String",
@@ -260,15 +341,23 @@ Return authenticated user's dashboard stats.
   "totalScans": "Number",
   "streak": "Number",
   "lastScanDate": "Date",
-  "categoryStats": { "plastic":0, "paper":0, "glass":0, "metal":0, "organic":0, "other":0 },
-  "achievements": [{ "achievementId":"String", "unlockedAt":"Date" }],
-  "tokens": [{ "token":"String", "createdAt":"Date" }],
+  "categoryStats": {
+    "plastic": 0,
+    "paper": 0,
+    "glass": 0,
+    "metal": 0,
+    "organic": 0,
+    "other": 0
+  },
+  "achievements": [{ "achievementId": "String", "unlockedAt": "Date" }],
+  "tokens": [{ "token": "String", "createdAt": "Date" }],
   "createdAt": "Date",
   "updatedAt": "Date"
 }
 ```
 
 **scans**
+
 ```json
 {
   "userId": "ObjectId",
@@ -282,6 +371,7 @@ Return authenticated user's dashboard stats.
 ```
 
 **otp**
+
 ```json
 {
   "userId": "ObjectId",
@@ -299,6 +389,7 @@ Indexes: `{ userId, type }` unique; `expiresAt` TTL index.
 ## cURL Examples
 
 **Login (verified user)**
+
 ```bash
 curl -X POST https://eco.wahb.space/api/auth/login \
   -H "Content-Type: application/json" \
@@ -307,6 +398,7 @@ curl -X POST https://eco.wahb.space/api/auth/login \
 ```
 
 **Predict**
+
 ```bash
 curl -X POST https://eco.wahb.space/api/predict \
   -H "Content-Type: application/json" \
@@ -315,6 +407,7 @@ curl -X POST https://eco.wahb.space/api/predict \
 ```
 
 **Get leaderboard**
+
 ```bash
 curl https://eco.wahb.space/api/leaderboard
 ```
@@ -322,6 +415,7 @@ curl https://eco.wahb.space/api/leaderboard
 ---
 
 ## ✅ Best practices & Production checklist
+
 - Enforce HTTPS and `secure` cookie flag in all environments except local dev.
 - Rate limit `POST /api/predict` and auth endpoints to prevent abuse (e.g. 10–30 r/m per IP for predict depending on infra).
 - Monitor ML latency & fallback gracefully (return `422` with `noMatch` if model unavailable).
@@ -331,20 +425,27 @@ curl https://eco.wahb.space/api/leaderboard
 ---
 
 ## 🛠️ Local Setup
+
 1. Clone repo:
+
 ```bash
 git clone https://github.com/wahb-amir/ecolens.git
 cd ecolens
 ```
+
 2. Install:
+
 ```bash
 pnpm install  # or npm install
 ```
+
 3. Environment:
+
 ```bash
 cp .env.example .env
 # populate MONGO_URI, JWT secrets, SMTP creds, HF_SPACE_URL (if any)
 ```
+
 4. Run
 
 # 🌿 EcoLens Project Structure

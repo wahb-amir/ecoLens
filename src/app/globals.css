@@ -57,7 +57,10 @@
   }
 }
 /* global.css */
-html, body, #__next, #root {
+html,
+body,
+#__next,
+#root {
   height: 100%;
 }
 
@@ -115,16 +118,20 @@ canvas {
   scrollbar-color: #2d2d2d transparent;
 }
 /* globals.css (add near top) */
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 /* ensure the root fills the viewport and hide accidental horizontal overflow */
-html, body, #__next {
+html,
+body,
+#__next {
   height: 100%;
   width: 100%;
   margin: 0;
   padding: 0;
-  overflow-x: hidden;           /* prevents horizontal scroll from any element */
-  scrollbar-gutter: stable;     /* reserve scrollbar space so layout doesn't shift */
+  overflow-x: hidden; /* prevents horizontal scroll from any element */
+  scrollbar-gutter: stable; /* reserve scrollbar space so layout doesn't shift */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -135,4 +142,6 @@ body {
 }
 
 /* prevent tiny canvas gaps from showing scrollbars */
-canvas { display: block; }
+canvas {
+  display: block;
+}

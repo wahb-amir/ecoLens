@@ -1,7 +1,13 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
-import { motion, useTransform, useInView, useMotionValue, animate } from "framer-motion";
+import {
+  motion,
+  useTransform,
+  useInView,
+  useMotionValue,
+  animate,
+} from "framer-motion";
 import { UploadCloud, Cpu, Award, BarChart, CheckCircle2 } from "lucide-react";
 
 const STEPS = [
@@ -54,14 +60,14 @@ export default function HowItWorksSection() {
   const packetScale = useTransform(
     progress,
     [0, 0.3, 0.35, 0.38, 0.45, 1],
-    [1, 1, 1.5, 1.7, 1, 1] 
+    [1, 1, 1.5, 1.7, 1, 1],
   );
-  
+
   // Clean Eco-Tech Palette: Cyan to Emerald
   const packetColor = useTransform(
     progress,
     [0, 0.4, 0.8, 1],
-    ["#06b6d4", "#2dd4bf", "#10b981", "#10b981"] 
+    ["#06b6d4", "#2dd4bf", "#10b981", "#10b981"],
   );
 
   return (
@@ -94,19 +100,19 @@ export default function HowItWorksSection() {
               className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
               style={{ width: desktopWidth }}
             />
-            
+
             <motion.div
               className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full shadow-2xl z-10 flex items-center justify-center"
-              style={{ 
-                left: packetLeft, 
+              style={{
+                left: packetLeft,
                 scale: packetScale,
                 backgroundColor: "#ffffff",
                 border: "2px solid",
-                borderColor: packetColor
+                borderColor: packetColor,
               }}
             >
-              <motion.div 
-                className="absolute inset-0 rounded-full animate-ping opacity-60" 
+              <motion.div
+                className="absolute inset-0 rounded-full animate-ping opacity-60"
                 style={{ backgroundColor: packetColor }}
               />
             </motion.div>
@@ -123,12 +129,7 @@ export default function HowItWorksSection() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8 relative z-10">
             {STEPS.map((step, idx) => (
-              <NodeCard
-                key={idx}
-                step={step}
-                index={idx}
-                progress={progress}
-              />
+              <NodeCard key={idx} step={step} index={idx} progress={progress} />
             ))}
           </div>
         </div>
@@ -137,22 +138,50 @@ export default function HowItWorksSection() {
   );
 }
 
-function NodeCard({ step, index, progress }: { step: any; index: number; progress: any; }) {
+function NodeCard({
+  step,
+  index,
+  progress,
+}: {
+  step: any;
+  index: number;
+  progress: any;
+}) {
   const start = index * 0.25;
   const end = (index + 1) * 0.25;
 
   const sBig = clamp(start + 0.1);
   const eBig = clamp(end + 0.05);
 
-  const isActiveMV = useTransform(progress, [start, sBig, end - 0.05, end], [0, 1, 1, 0]);
+  const isActiveMV = useTransform(
+    progress,
+    [start, sBig, end - 0.05, end],
+    [0, 1, 1, 0],
+  );
   const isDoneMV = useTransform(progress, [end - 0.01, eBig], [0, 1]);
 
   const y = useTransform(progress, [start, sBig, end, eBig], [0, -12, -12, 0]);
-  const scale = useTransform(progress, [start, sBig, end, eBig], [1, 1.03, 1.03, 1]);
-  
-  const borderColor = useTransform(progress, [start, sBig, end], ["#f1f5f9", "#06b6d4", "#e2e8f0"]);
-  const iconBg = useTransform(progress, [start, start + 0.05, end], ["#f8fafc", "#06b6d4", "#10b981"]);
-  const iconColor = useTransform(progress, [start, start + 0.05], ["#94a3b8", "#ffffff"]);
+  const scale = useTransform(
+    progress,
+    [start, sBig, end, eBig],
+    [1, 1.03, 1.03, 1],
+  );
+
+  const borderColor = useTransform(
+    progress,
+    [start, sBig, end],
+    ["#f1f5f9", "#06b6d4", "#e2e8f0"],
+  );
+  const iconBg = useTransform(
+    progress,
+    [start, start + 0.05, end],
+    ["#f8fafc", "#06b6d4", "#10b981"],
+  );
+  const iconColor = useTransform(
+    progress,
+    [start, start + 0.05],
+    ["#94a3b8", "#ffffff"],
+  );
   const barWidth = useTransform(progress, [start, end], ["0%", "100%"]);
 
   const [active, setActive] = useState(false);
@@ -162,7 +191,10 @@ function NodeCard({ step, index, progress }: { step: any; index: number; progres
   }, [isActiveMV]);
 
   return (
-    <motion.div style={{ y, scale }} className="relative flex flex-col items-center">
+    <motion.div
+      style={{ y, scale }}
+      className="relative flex flex-col items-center"
+    >
       <motion.div
         className="w-full p-8 rounded-[2.5rem] bg-white border-2 flex flex-col shadow-sm overflow-hidden relative"
         style={{ borderColor }}
@@ -191,9 +223,9 @@ function NodeCard({ step, index, progress }: { step: any; index: number; progres
         </div>
 
         <h3 className="text-2xl font-bold text-slate-800 mb-2">{step.title}</h3>
-        <p className="text-slate-500 text-sm leading-relaxed mb-6">{step.desc}</p>
-
-        
+        <p className="text-slate-500 text-sm leading-relaxed mb-6">
+          {step.desc}
+        </p>
       </motion.div>
     </motion.div>
   );

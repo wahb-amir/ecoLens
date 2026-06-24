@@ -11,7 +11,7 @@ import { Mail, Lock, Loader2, User } from "lucide-react";
 import { useAuth } from "@/app/providers/AuthProvider";
 export default function RegisterPage() {
   const router = useRouter();
-  const {syncUser}=useAuth()
+  const { syncUser } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{
     type: "error" | "success";
@@ -32,9 +32,9 @@ export default function RegisterPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setStatus(null); 
+    setStatus(null);
     try {
-      const response = await fetch(`/api/auth/register` , {
+      const response = await fetch(`/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -42,7 +42,7 @@ export default function RegisterPage() {
         body: JSON.stringify(formData),
         credentials: "include",
       });
-      await syncUser()
+      await syncUser();
       const data = await response.json();
 
       if (!response.ok) {
@@ -56,7 +56,6 @@ export default function RegisterPage() {
       setTimeout(() => {
         router.push(`/verify-otp`);
       }, 500);
-
     } catch (error: any) {
       setStatus({
         type: "error",

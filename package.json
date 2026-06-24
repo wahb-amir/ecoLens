@@ -7,7 +7,8 @@
     "build": "NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postbuild" : "next-sitemap"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -46,6 +47,7 @@
     "mongo": "^0.1.0",
     "mongoose": "^9.2.1",
     "next": "^16.1.6",
+    "next-sitemap": "^4.2.3",
     "nodemailer": "^8.0.1",
     "patch-package": "^8.0.1",
     "react": "^19.2.4",

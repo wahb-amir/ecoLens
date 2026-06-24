@@ -66,9 +66,7 @@ export function AuthProvider({
 
     const p = (async () => {
       try {
-        const url = backendBase
-          ? `${backendBase}/api/user/me`
-          : "/api/user/me";
+        const url = backendBase ? `${backendBase}/api/user/me` : "/api/user/me";
 
         const res = await fetch(url, {
           method: "GET",

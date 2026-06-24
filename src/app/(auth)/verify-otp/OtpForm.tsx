@@ -9,7 +9,7 @@ import { Loader2, RefreshCw, ShieldCheck, ArrowLeft } from "lucide-react"; // Ad
 import { useAuth } from "@/app/providers/AuthProvider";
 function OtpForm() {
   const searchParams = useSearchParams();
-  const {syncUser}=useAuth()
+  const { syncUser } = useAuth();
   const router = useRouter();
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [isLoading, setIsLoading] = useState(false);
@@ -60,11 +60,10 @@ function OtpForm() {
     inputRefs.current[5]?.focus();
   };
 
-
   const handleVerify = async (e?: React.FormEvent, manualOtp?: string) => {
     if (e) e.preventDefault();
     const codeToVerify = manualOtp || otp.join("");
-    
+
     setIsLoading(true);
     setStatus(null);
 
@@ -73,9 +72,9 @@ function OtpForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ otp: codeToVerify }),
-        credentials: "include", 
+        credentials: "include",
       });
-      await syncUser()
+      await syncUser();
       const data = await response.json();
 
       if (!response.ok) {
@@ -88,7 +87,6 @@ function OtpForm() {
       });
 
       setTimeout(() => router.push("/dashboard"), 400);
-
     } catch (error: any) {
       setStatus({
         type: "error",
@@ -112,9 +110,15 @@ function OtpForm() {
       if (!response.ok) throw new Error("Could not resend code");
 
       setTimer(30);
-      setStatus({ type: "success", msg: "A new code has been sent to your email." });
+      setStatus({
+        type: "success",
+        msg: "A new code has been sent to your email.",
+      });
     } catch (error: any) {
-      setStatus({ type: "error", msg: "Failed to resend code. Try again later." });
+      setStatus({
+        type: "error",
+        msg: "Failed to resend code. Try again later.",
+      });
     } finally {
       setIsLoading(false);
     }

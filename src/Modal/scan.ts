@@ -1,4 +1,3 @@
-
 import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IScan extends Document {
@@ -13,11 +12,11 @@ export interface IScan extends Document {
 
 const scanSchema = new Schema<IScan>(
   {
-    userId: { 
-      type: Schema.Types.ObjectId, 
-      ref: "User", 
-      required: true, 
-      index: true // CRITICAL: Index for fetching history fast
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true, // CRITICAL: Index for fetching history fast
     },
     label: { type: String, required: true },
     confidence: { type: Number, required: true },
@@ -25,7 +24,7 @@ const scanSchema = new Schema<IScan>(
     pointsEarned: { type: Number, default: 0 },
     metadata: { type: Schema.Types.Mixed },
   },
-  { timestamps: { createdAt: true, updatedAt: false } } // We only need createdAt for history
+  { timestamps: { createdAt: true, updatedAt: false } }, // We only need createdAt for history
 );
 
 const Scan: Model<IScan> =

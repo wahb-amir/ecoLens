@@ -1,16 +1,20 @@
-'use client'
-import { useEffect, useRef } from "react"
-import { animate } from "framer-motion"
+"use client";
+import { useEffect, useRef } from "react";
+import { animate } from "framer-motion";
 
 type AnimatedCounterProps = {
   to: number;
   from?: number;
   className?: string;
-}
+};
 
-export function AnimatedCounter({ to, from = 0, className }: AnimatedCounterProps) {
+export function AnimatedCounter({
+  to,
+  from = 0,
+  className,
+}: AnimatedCounterProps) {
   const ref = useRef<HTMLSpanElement>(null);
-  
+
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
@@ -20,7 +24,7 @@ export function AnimatedCounter({ to, from = 0, className }: AnimatedCounterProp
       ease: "easeOut",
       onUpdate(value) {
         node.textContent = Math.round(value).toLocaleString();
-      }
+      },
     });
 
     return () => controls.stop();

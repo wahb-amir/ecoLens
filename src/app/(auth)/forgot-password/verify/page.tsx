@@ -12,10 +12,10 @@ import { toast } from "sonner";
 function VerifyOTPForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   // Extract email from URL
   const email = searchParams.get("email");
-  
+
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -28,7 +28,8 @@ function VerifyOTPForm() {
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp.length !== 6) return toast.error("Please enter the full 6-digit code");
+    if (otp.length !== 6)
+      return toast.error("Please enter the full 6-digit code");
 
     setIsLoading(true);
 
@@ -49,7 +50,7 @@ function VerifyOTPForm() {
           token: data.recoveryToken,
           uid: data.userId,
         }).toString();
-        
+
         router.push(`/forgot-password/reset?${query}`);
       } else {
         toast.error(data.error || "Invalid or expired code");
@@ -64,7 +65,7 @@ function VerifyOTPForm() {
   return (
     <AuthLayout
       title="Verify your email"
-      subtitle={`We've sent a 6-digit code to ${email || 'your inbox'}`}
+      subtitle={`We've sent a 6-digit code to ${email || "your inbox"}`}
     >
       <form onSubmit={handleVerify} className="space-y-6">
         <div className="space-y-4">
@@ -73,7 +74,7 @@ function VerifyOTPForm() {
               <ShieldCheck className="w-8 h-8 text-emerald-600" />
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <Input
               type="text"
@@ -123,7 +124,7 @@ function VerifyOTPForm() {
 // 2. Main export wrapped in Suspense for Next.js build optimization
 export default function VerifyPage() {
   return (
-    <Suspense 
+    <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-white">
           <Loader2 className="animate-spin h-8 w-8 text-emerald-500" />

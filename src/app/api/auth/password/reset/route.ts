@@ -10,7 +10,10 @@ export async function POST(req: Request) {
     const { userId, recoveryToken, newPassword } = await req.json();
 
     if (!userId || !recoveryToken || !newPassword) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 },
+      );
     }
 
     // 1. Find user by ID, ensuring the recovery token matches and isn't expired
@@ -21,7 +24,10 @@ export async function POST(req: Request) {
     }).select("+password"); // Need to select password if it's set to 'select: false' in schema
 
     if (!user) {
-      return NextResponse.json({ error: "Invalid or expired recovery session" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Invalid or expired recovery session" },
+        { status: 401 },
+      );
     }
 
     // 2. Hash the new password
@@ -32,12 +38,15 @@ export async function POST(req: Request) {
     user.password = hashedPassword;
     user.resetToken = undefined;
     user.resetTokenExpiry = undefined;
-    
+
     await user.save();
 
     return NextResponse.json({ message: "Password updated successfully" });
   } catch (error) {
     console.error("Reset Password Error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }

@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { Zap } from 'lucide-react';
+import React from "react";
+import { Zap } from "lucide-react";
 
 export function Footer({ isLandingPage }: { isLandingPage: boolean }) {
   if (isLandingPage) return null;

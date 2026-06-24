@@ -2,26 +2,38 @@
 import nodemailer from "nodemailer";
 
 type SendOtpOpts = {
-  heading?: string;      // Custom heading (e.g., "Reset your password")
-  subHeading?: string;   // Custom subtext
+  heading?: string; // Custom heading (e.g., "Reset your password")
+  subHeading?: string; // Custom subtext
   expiryMinutes?: number;
   origin?: string;
   maxRetries?: number;
   retryDelayMs?: number;
-  verifyPath?: string; 
-  verifyQueryParam?: string; 
-  verifyUrl?: string; 
+  verifyPath?: string;
+  verifyQueryParam?: string;
+  verifyUrl?: string;
   verifyLinkText?: string;
-  verifyLogoPath?: string; 
+  verifyLogoPath?: string;
   verifyTimeoutMs?: number;
   sendTimeoutMs?: number;
   includeEmailInRedirect?: string; // Optional: appends &email=... to the link
 };
 
-const DEFAULT_OPTS: Required<Pick<
-  SendOtpOpts,
-  "heading" | "subHeading" | "expiryMinutes" | "maxRetries" | "retryDelayMs" | "verifyPath" | "verifyQueryParam" | "verifyLinkText" | "verifyLogoPath" | "verifyTimeoutMs" | "sendTimeoutMs"
->> = {
+const DEFAULT_OPTS: Required<
+  Pick<
+    SendOtpOpts,
+    | "heading"
+    | "subHeading"
+    | "expiryMinutes"
+    | "maxRetries"
+    | "retryDelayMs"
+    | "verifyPath"
+    | "verifyQueryParam"
+    | "verifyLinkText"
+    | "verifyLogoPath"
+    | "verifyTimeoutMs"
+    | "sendTimeoutMs"
+  >
+> = {
   heading: "Your verification code",
   subHeading: "Use the code below to verify your account.",
   expiryMinutes: 60,
@@ -35,24 +47,29 @@ const DEFAULT_OPTS: Required<Pick<
   sendTimeoutMs: 10000,
 };
 
-
 let transporter: nodemailer.Transporter | null = null;
 
 function createTransporter(): nodemailer.Transporter {
   const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
+  const port = process.env.SMTP_PORT
+    ? Number(process.env.SMTP_PORT)
+    : undefined;
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASS;
-  const secure = process.env.SMTP_SECURE === "true" || (port === 465);
+  const secure = process.env.SMTP_SECURE === "true" || port === 465;
 
   const service = process.env.EMAIL_SERVICE; // e.g., "gmail"
 
   if (!user || !pass) {
-    throw new Error("Missing EMAIL_USER or EMAIL_PASS environment variables for mailer");
+    throw new Error(
+      "Missing EMAIL_USER or EMAIL_PASS environment variables for mailer",
+    );
   }
 
   if (!host && !service) {
-    throw new Error("Missing SMTP_HOST (preferred) or EMAIL_SERVICE for mailer configuration");
+    throw new Error(
+      "Missing SMTP_HOST (preferred) or EMAIL_SERVICE for mailer configuration",
+    );
   }
 
   const transportOptions: any = host
@@ -61,8 +78,12 @@ function createTransporter(): nodemailer.Transporter {
 
   // Pooling can help in production when sending many emails
   transportOptions.pool = process.env.SMTP_POOL === "true" || false;
-  transportOptions.maxConnections = process.env.SMTP_MAX_CONNECTIONS ? Number(process.env.SMTP_MAX_CONNECTIONS) : undefined;
-  transportOptions.maxMessages = process.env.SMTP_MAX_MESSAGES ? Number(process.env.SMTP_MAX_MESSAGES) : undefined;
+  transportOptions.maxConnections = process.env.SMTP_MAX_CONNECTIONS
+    ? Number(process.env.SMTP_MAX_CONNECTIONS)
+    : undefined;
+  transportOptions.maxMessages = process.env.SMTP_MAX_MESSAGES
+    ? Number(process.env.SMTP_MAX_MESSAGES)
+    : undefined;
 
   return nodemailer.createTransport(transportOptions);
 }
@@ -73,7 +94,11 @@ function getTransporter(): nodemailer.Transporter {
 }
 
 /** small promise timeout helper */
-async function pTimeout<T>(promise: Promise<T>, ms: number, errMsg = "Operation timed out"): Promise<T> {
+async function pTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  errMsg = "Operation timed out",
+): Promise<T> {
   let timeout: NodeJS.Timeout;
   return await Promise.race([
     promise,
@@ -94,15 +119,17 @@ function sanitizeOrigin(o: unknown): string {
 }
 
 function buildHtml(
-  otp: string, 
-  expiryMinutes: number, 
-  verifyUrl: string, 
-  logoSrc: string, 
+  otp: string,
+  expiryMinutes: number,
+  verifyUrl: string,
+  logoSrc: string,
   verifyLinkText: string,
   heading: string,
-  subHeading: string
+  subHeading: string,
 ) {
-  const logoImg = logoSrc ? `<img src="${logoSrc}" alt="Logo" width="72" style="display:block;margin:0 auto 12px auto;">` : "";
+  const logoImg = logoSrc
+    ? `<img src="${logoSrc}" alt="Logo" width="72" style="display:block;margin:0 auto 12px auto;">`
+    : "";
   return `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
@@ -134,34 +161,39 @@ function buildHtml(
 export async function sendOtpEmail(
   toEmail: string,
   otp: string,
-  opts: SendOtpOpts = {}
+  opts: SendOtpOpts = {},
 ): Promise<{ success: true; info: nodemailer.SentMessageInfo }> {
-  if (!toEmail || typeof toEmail !== "string") throw new TypeError("toEmail is required");
+  if (!toEmail || typeof toEmail !== "string")
+    throw new TypeError("toEmail is required");
   if (!otp || typeof otp !== "string") throw new TypeError("otp is required");
 
   const conf = { ...DEFAULT_OPTS, ...opts };
-  
+
   // Build dynamic verify URL with optional email param for pre-filling frontend
   let verifyUrl = "";
   const origin = sanitizeOrigin(conf.origin ?? process.env.ORIGIN ?? "");
   if (origin || opts.verifyUrl) {
-    verifyUrl = opts.verifyUrl ?? `${origin}${conf.verifyPath}?${encodeURIComponent(conf.verifyQueryParam)}=${encodeURIComponent(otp)}`;
+    verifyUrl =
+      opts.verifyUrl ??
+      `${origin}${conf.verifyPath}?${encodeURIComponent(conf.verifyQueryParam)}=${encodeURIComponent(otp)}`;
     if (conf.includeEmailInRedirect) {
-        verifyUrl += `&email=${encodeURIComponent(conf.includeEmailInRedirect)}`;
+      verifyUrl += `&email=${encodeURIComponent(conf.includeEmailInRedirect)}`;
     }
   }
 
-  const fromAddress = process.env.EMAIL_FROM ?? `"${process.env.EMAIL_BRAND ?? "App"}" <${process.env.EMAIL_USER}>`;
+  const fromAddress =
+    process.env.EMAIL_FROM ??
+    `"${process.env.EMAIL_BRAND ?? "App"}" <${process.env.EMAIL_USER}>`;
   const logoSrc = origin ? `${origin}${conf.verifyLogoPath}` : "";
-  
+
   const html = buildHtml(
-    otp, 
-    Number(conf.expiryMinutes), 
-    verifyUrl, 
-    logoSrc, 
+    otp,
+    Number(conf.expiryMinutes),
+    verifyUrl,
+    logoSrc,
     conf.verifyLinkText,
     conf.heading,
-    conf.subHeading
+    conf.subHeading,
   );
   const textParts = [
     `Your verification code is: ${otp}`,
@@ -185,7 +217,9 @@ export async function sendOtpEmail(
     await pTimeout(t.verify(), conf.verifyTimeoutMs, "SMTP verify timed out");
   } catch (verifyErr) {
     // In production you'd probably log this to an error tracker
-    throw new Error(`SMTP verification failed: ${(verifyErr as Error).message || String(verifyErr)}`);
+    throw new Error(
+      `SMTP verification failed: ${(verifyErr as Error).message || String(verifyErr)}`,
+    );
   }
 
   // Retries with exponential backoff + jitter
@@ -195,7 +229,11 @@ export async function sendOtpEmail(
   let lastErr: unknown = null;
   for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
     try {
-      const info = await pTimeout(t.sendMail(mailOptions), conf.sendTimeoutMs, "sendMail timed out");
+      const info = await pTimeout(
+        t.sendMail(mailOptions),
+        conf.sendTimeoutMs,
+        "sendMail timed out",
+      );
       return { success: true, info };
     } catch (err) {
       lastErr = err;
@@ -205,14 +243,22 @@ export async function sendOtpEmail(
       // lightweight server log — replace with structured logger in prod
       // Avoid logging full error body in prod to not leak secrets
       // eslint-disable-next-line no-console
-      console.warn(`sendOtpEmail attempt ${attempt} failed, retrying in ${delay}ms:`, (err as Error).message ?? err);
+      console.warn(
+        `sendOtpEmail attempt ${attempt} failed, retrying in ${delay}ms:`,
+        (err as Error).message ?? err,
+      );
       await sleep(delay);
     }
   }
 
   // All attempts exhausted
-  const message = lastErr && (lastErr as any).message ? (lastErr as any).message : String(lastErr);
-  throw new Error(`Failed to send OTP email after ${maxRetries} attempts: ${message}`);
+  const message =
+    lastErr && (lastErr as any).message
+      ? (lastErr as any).message
+      : String(lastErr);
+  throw new Error(
+    `Failed to send OTP email after ${maxRetries} attempts: ${message}`,
+  );
 }
 
 export default sendOtpEmail;
